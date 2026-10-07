@@ -1,0 +1,32 @@
+┌────────────────────────────────────────────────────────────────────────┐
+│                              SCIP DATABASE                             │
+├─────────────────┬──────────────────────────────────────────────────────┤
+│ Entity          │ Key Attributes                                       │
+├─────────────────┼──────────────────────────────────────────────────────┤
+│ Users           │ id, name, email, passwordHash, role, departmentId,   │
+│                 │ phone, status ('active' | 'suspended'), timestamps   │
+│ Departments     │ id, code, name, description, headName, email, phone, │
+│                 │ activeIncidentsCount, createdAt                      │
+│ Reports         │ id, title, description, category, locationName,      │
+│                 │ latitude, longitude, citizenId, status, urgency,     │
+│                 │ incidentId, images, createdAt                        │
+│ AIAnalyses      │ reportId, categoryPredicted, categoryConfidence,     │
+│                 │ keywords[], entities{}, sentiment, riskScore,        │
+│                 │ topSimilarReports[], possibleIncident, confidence    │
+│ Incidents       │ id, title, category, description, locationName,      │
+│                 │ latitude, longitude, radiusMeters, reportIds[],      │
+│                 │ severity, priority, confidence, status, isAIGenerated│
+│                 │ humanReviewed, assignedDepartmentId, resolutionNotes │
+│ Assignments     │ id, incidentId, departmentId, officerId, status,     │
+│                 │ notes, assignedAt                                    │
+│ Resolutions     │ id, incidentId, officerId, actionTaken, materials[], │
+│                 │ verifiedBy, resolvedAt                               │
+│ Notifications   │ id, userId, title, message, link, read, createdAt    │
+│ Feedback        │ id, reportId, citizenId, rating (1-5), comments      │
+│ AuditLogs       │ id, timestamp, action, module, userId, userRole,     │
+│                 │ ipAddress, details                                   │
+│ SpatioClusters  │ id, centroidLatitude, centroidLongitude, radius,     │
+│                 │ reportIds[], clusterDensity, confidence              │
+│ RiskScores      │ entityId, compositeScore, severityWeight, density,   │
+│                 │ recurrenceWeight, timeDecay, explanation[]           │
+└─────────────────┴──────────────────────────────────────────────────────┘

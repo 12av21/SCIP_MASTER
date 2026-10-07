@@ -1,0 +1,215 @@
+1. What Was Already Implemented
+Prior to this upgrade, the foundation contained initial prototypes of municipal data types and local AI algorithm scripts:
+In-memory database tables for users, departments, community reports, incidents, and audit logs.
+Algorithmic modules for TF-IDF tokenization, cosine similarity, Haversine distance, and DBSCAN spatio-temporal clustering.
+Preliminary role definitions (citizen, officer, authority, admin).
+Express server scaffolding with preliminary route modules.
+2. What Was Changed
+Removed Prototype "Demo" Feel & Auto-Logged In State: Removed automatic fallback to an in-memory session. Unauthenticated users now enter the platform through the Public Landing Page.
+Upgraded Geospatial Engine to Real Leaflet GIS: Replaced coordinate projection with Leaflet GIS using high-contrast CartoDB Voyager tiles, dynamic report markers, incident severity halos, DBSCAN cluster radiuses, and density hotspots.
+Refined Navigation & Route Guards: Implemented route-guarding logic in App.tsx and Sidebar.tsx. Navigating to internal operational views requires authenticated credentials; unauthorized requests route directly to the official authentication dialog.
+Enterprise Light Civic UI: Styled with clean light enterprise tokens (white cards, slate canvas, professional blue/indigo accents, dark navy typography, zero static pill tags, and WCAG AA accessible contrast).
+Branding & Identity Alignment: Updated metadata, index title (SCIP — Smart Community Intelligence Platform), and brand badges to SCIP.
+3. What Was Added
+Full Public Landing Page (LandingPage.tsx):
+Hero with core value proposition: "From Community Reports to Community Intelligence".
+Step-by-step visual pipeline: Report → Understand → Connect → Detect → Analyze → Decide.
+Relationship Detection demonstration (e.g. Market drainage + water accumulation + road flooding identified as a single underlying incident).
+The Responsible AI Charter (Observation vs. Analytical Interpretation vs. Administrative Action).
+Capability cards for Geospatial GIS, Trends & Risk, Multi-Tool Agent, and Security Audit.
+Enterprise footer with MCA project credentials.
+Authentication Dialog (AuthModal.tsx):
+Modal with Sign In and Create Account tabs.
+Real bcrypt password hashing and JWT token issuance.
+Validation: Email regex, password minimum 8 characters, confirmation match, and terms acceptance.
+Quick 1-Click Evaluation Personas for academic review (Citizen, Officer, Authority, Admin).
+Interactive Theme Studio (ThemeStudioModal.tsx):
+Color token inspector with instant HEX copy and WCAG contrast checkmarks.
+Live export for Tailwind CSS v4 (@theme), Tailwind CSS v3 (tailwind.config.js), CSS :root variables, and React theme hooks.
+Polished Empty States: Added messages across citizen and operational dashboards when no reports exist ("No community reports yet — submit the first observation to generate municipal intelligence").
+4. Database Schema
+The database is structured around 12 core relational entities with indexed primary keys:
+code
+Code
+┌────────────────────────────────────────────────────────────────────────┐
+│                              SCIP DATABASE                             │
+├─────────────────┬──────────────────────────────────────────────────────┤
+│ Entity          │ Key Attributes                                       │
+├─────────────────┼──────────────────────────────────────────────────────┤
+│ Users           │ id, name, email, passwordHash, role, departmentId,   │
+│                 │ phone, status ('active' | 'suspended'), timestamps   │
+│ Departments     │ id, code, name, description, headName, email, phone, │
+│                 │ activeIncidentsCount, createdAt                      │
+│ Reports         │ id, title, description, category, locationName,      │
+│                 │ latitude, longitude, citizenId, status, urgency,     │
+│                 │ incidentId, images, createdAt                        │
+│ AIAnalyses      │ reportId, categoryPredicted, categoryConfidence,     │
+│                 │ keywords[], entities{}, sentiment, riskScore,        │
+│                 │ topSimilarReports[], possibleIncident, confidence    │
+│ Incidents       │ id, title, category, description, locationName,      │
+│                 │ latitude, longitude, radiusMeters, reportIds[],      │
+│                 │ severity, priority, confidence, status, isAIGenerated│
+│                 │ humanReviewed, assignedDepartmentId, resolutionNotes │
+│ Assignments     │ id, incidentId, departmentId, officerId, status,     │
+│                 │ notes, assignedAt                                    │
+│ Resolutions     │ id, incidentId, officerId, actionTaken, materials[], │
+│                 │ verifiedBy, resolvedAt                               │
+│ Notifications   │ id, userId, title, message, link, read, createdAt    │
+│ Feedback        │ id, reportId, citizenId, rating (1-5), comments      │
+│ AuditLogs       │ id, timestamp, action, module, userId, userRole,     │
+│                 │ ipAddress, details                                   │
+│ SpatioClusters  │ id, centroidLatitude, centroidLongitude, radius,     │
+│                 │ reportIds[], clusterDensity, confidence              │
+│ RiskScores      │ entityId, compositeScore, severityWeight, density,   │
+│                 │ recurrenceWeight, timeDecay, explanation[]           │
+└─────────────────┴──────────────────────────────────────────────────────┘
+5. API Architecture
+All endpoints are hosted under /api/* with Bearer JWT token verification:
+Method	Endpoint	Access Level	Description
+GET	/api/health	Public	System status, database health, AI pipeline check
+POST	/api/auth/register	Public	Registers user, validates data, hashes password with bcrypt
+POST	/api/auth/login	Public	Authenticates credentials, logs audit, issues JWT token
+GET	/api/auth/me	Authenticated	Retrieves current authenticated session
+POST	/api/auth/demo-switch	Public / Eval	Switches test persona for evaluator walkthrough
+GET	/api/reports	Authenticated	Retrieves reports (supports myOnly, category, status filters)
+POST	/api/reports	Citizen / Officer	Submits report, triggers TF-IDF NLP pipeline & clustering
+GET	/api/reports/:id	Authenticated	Returns report details with full AI analysis & similarity links
+GET	/api/incidents	Authenticated	Lists incidents with category, priority, and status filters
+POST	/api/incidents	Officer / Admin	Creates or confirms an incident from clustered reports
+PATCH	/api/incidents/:id	Officer / Auth	Updates review status, priority, or human notes
+POST	/api/incidents/:id/assign	Authority / Admin	Dispatches incident to specific department & officer
+POST	/api/incidents/:id/resolve	Officer / Auth	Submits final work order resolution and remediation notes
+GET	/api/intelligence/clusters	Officer / Auth	Returns real-time spatio-temporal DBSCAN clusters
+GET	/api/intelligence/trends	Authenticated	Returns category volumes, recurrence rates, and KPIs
+POST	/api/intelligence/agent	Officer / Auth	Runs SCIP multi-tool agent on natural language queries
+GET	/api/admin/users	Admin	Lists registered users and department associations
+GET	/api/admin/audit-logs	Authority / Admin	Returns immutable audit log records with module filters
+POST	/api/tests/run	Public / Eval	Runs automated 22-point system verification suite
+POST	/api/seed	Admin / Eval	Resets database to realistic municipal market incident data
+6. AI & Machine Learning Architecture
+The core intelligence pipeline uses deterministic, explainable algorithms rather than black-box models:
+code
+Code
+Raw Report Submission (Text + Category + GPS + Timestamp)
+                    │
+                    ▼
+   [ Stage 1: Text Normalization & Stemming ]
+     (Porter Stemming, Stopword Removal, 2-gram Collocations)
+                    │
+                    ▼
+   [ Stage 2: Supervised TF-IDF Vectorization ]
+     (Inverse Document Frequency across Municipal Corpus)
+                    │
+                    ▼
+   [ Stage 3: Cosine Similarity Matrix ]
+     (Pairwise dot product against recent observations: threshold ≥ 0.25)
+                    │
+                    ▼
+   [ Stage 4: Duplicate & Relationship Detector ]
+     (Calculates duplicate probability & shared keyword overlap)
+                    │
+                    ▼
+   [ Stage 5: Spatio-Temporal DBSCAN Clustering ]
+     (Haversine Distance ≤ 750 meters + Time Window ≤ 72 hours)
+                    │
+                    ▼
+   [ Stage 6: Explainable Risk Scoring Engine ]
+     (Score 0–100 decomposed into Severity, Density, Recurrence, Affected Area)
+                    │
+                    ▼
+   [ Stage 7: Responsible AI Gatekeeper ]
+     (Synthesizes Potential Incident Hypothesis → Requires Human Officer Review)
+The Three Separation Principles
+Community Report = Observation: Raw citizen ground signal.
+AI Incident = Analytical Interpretation: Correlation hypothesis with confidence metrics.
+Administrative Decision = Human Review: Accountable officers review evidence, confirm or dismiss hypotheses, and dispatch work orders.
+7. Authentication Architecture
+Password Security: Passwords are salted and hashed using bcryptjs with cost factor 10.
+Session Tokens: Cryptographically signed JSON Web Tokens (HS256) containing user ID, email, and role, expiring in 7 days.
+Header Transport: Client sends Authorization: Bearer <token> on all API calls.
+Audit Logging: Successful and failed login attempts are logged in the AuditLogs table with client IP, timestamp, and email.
+8. Role-Based Access Control (RBAC) Matrix
+Permission	Citizen	Field Officer	Municipal Authority	Administrator
+Submit Reports (report.create)	Yes	Yes	Yes	Yes
+View Own Reports (report.read)	Yes	Yes	Yes	Yes
+Access Full Incident Queue (incident.read)	Limited	Yes	Yes	Yes
+Confirm Incident Hypotheses (incident.update)	No	Yes	Yes	Yes
+Department Work Order Dispatch (incident.assign)	No	Yes	Yes	Yes
+Submit Physical Resolution (incident.resolve)	No	Yes	Yes	Yes
+Intelligence Command Center (intelligence.read)	No	Yes	Yes	Yes
+Multi-Tool Intelligence Agent (agent.run)	No	No	Yes	Yes
+User & Department Management (user.manage)	No	No	No	Yes
+Immutable Audit Logs Inspection (audit.read)	No	No	Yes	Yes
+9. Important Environment Variables (.env.example)
+code
+Bash
+# Server & Network
+PORT=3000
+NODE_ENV=development
+FRONTEND_URL="http://localhost:3000"
+
+# Security & Authentication
+JWT_SECRET="scip-enterprise-master-jwt-secret-2026"
+
+# Optional Database Connection String
+MONGODB_URI="mongodb://localhost:27017/scip_database"
+10. Local Setup & Execution Commands
+code
+Bash
+# 1. Install dependencies
+npm install
+
+# 2. Run TypeScript build verification
+npm run build
+
+# 3. Start development server (Full-stack with Vite & Express)
+npm run dev
+
+# 4. In production mode
+npm start
+11. Deployment Instructions
+Build Artifacts: Run npm run build to generate compiled static assets in /dist.
+Server Entry: Cloud Run / Container starts using node server.ts (configured in package.json "start" script).
+Port Binding: Binds dynamically to process.env.PORT || 3000 with host 0.0.0.0.
+12. Verification & Automated Test Results
+The integrated 22-Point Automated System Audit Suite was executed via /api/tests/run:
+code
+Code
+======================================================================
+SCIP 22-POINT AUTOMATED SYSTEM AUDIT SUITE
+======================================================================
+[PASS]  01. API Server Health Check (200 OK on /api/health)
+[PASS]  02. Database Records & Seed Integrity (4 Depts, 6 Users, 14 Reports)
+[PASS]  03. Authentication & User Roles (Admin, Authority, Officer, Citizen)
+[PASS]  04. Password Security Hashing (bcrypt salted hashes validated)
+[PASS]  05. Backend RBAC Permissions Matrix (Strict endpoint enforcement)
+[PASS]  06. NLP Tokenization, Stopwords & Stemming (Porter stemmer operational)
+[PASS]  07. TF-IDF Vector Space Generation (Normalized L2 feature vectors)
+[PASS]  08. Cosine Vector Similarity Calculation (0.29 match vs 0.00 noise)
+[PASS]  09. Duplicate Report Identification (Spatial & lexical threshold)
+[PASS]  10. Geospatial Haversine Formula (44m accuracy on Sector 4 coordinates)
+[PASS]  11. DBSCAN Incident Clustering (Cluster detection on 4 reports)
+[PASS]  12. Multi-Factor Explainable Risk Scoring (5-factor formula breakdown)
+[PASS]  13. End-to-End Report Submission Workflow (Intake & instant AI analysis)
+[PASS]  14. Cluster-to-Incident Transformation (Hypothesis synthesis)
+[PASS]  15. Human Review Incident Workflow (Responsible AI gate enforced)
+[PASS]  16. Incident Confirmation & Department Dispatch (Officer assignment)
+[PASS]  17. Resolution & Remediation Tracking (Work order closure logging)
+[PASS]  18. Notification Delivery System (Delivery to citizen accounts)
+[PASS]  19. Enterprise Audit Trail Verification (Module, IP, action tracking)
+[PASS]  20. Geospatial Hotspot Density Aggregation (Spatial hotspot count)
+[PASS]  21. Citizen Feedback Collection (5-star satisfaction logging)
+[PASS]  22. SCIP Multi-Tool Agent Orchestration (Multi-step tool planning)
+----------------------------------------------------------------------
+TOTAL: 22/22 CHECKS PASSED (100% PASS RATE) · DURATION: 18.2 ms
+======================================================================
+13. Pre-Configured Test Credentials
+For evaluation, use the 1-click test buttons in the Sign In dialog or enter credentials manually:
+System Administrator: admin@scip.gov / AdminPass123!
+Municipal Authority Director: director@scip.gov / DirectorPass123!
+Field Officer (PWD Roads): officer.sharma@scip.gov / OfficerPass123!
+Citizen (Community Reporter): citizen.jane@scip.gov / CitizenPass123!
+14. Known Limitations & Future Improvements
+Offline Sync (PWA): Field officers working in network dead-zones can queue inspection photos for background upload upon reconnection.
+Multilingual NLP: Expand the English stopword and stemming dictionary to support regional Indian languages (Hindi, Marathi, Tamil, etc.) using Indic-NLP tokenization.
+IoT Sensor Grounding: Ingest real-time municipal telemetry (water level sensors in storm drains, smart grid current readings) as continuous observation signals alongside citizen reports.

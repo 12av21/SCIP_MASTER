@@ -1,0 +1,6 @@
+{
+  "name": "SCIP",
+  "description": "AI-assisted community intelligence platform for identifying related reports, emerging incidents, geospatial patterns and community trends.",
+  "requestFramePermissions": [],
+  "majorCapabilities": ["MAJOR_CAPABILITY_SERVER_SIDE_GEMINI_API"]
+}

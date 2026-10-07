@@ -1,0 +1,13 @@
+backend
+
+backend packages --  npm install express mongoose cors helmet dotenv bcryptjs jsonwebtoken zod
+development dependencies -- npm install -D typescript tsx @types/node @types/express @types/cors @types/jsonwebtoken
+npx tsc --init
+
+
+frontend 
+
+npm init -y
+
+npm install react react-dom react-router-dom
+development dependencies -- npm install -D vite typescript @types/react @types/react-dom @vitejs/plugin-react

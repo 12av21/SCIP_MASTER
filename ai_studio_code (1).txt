@@ -1,0 +1,29 @@
+Raw Report Submission (Text + Category + GPS + Timestamp)
+                    │
+                    ▼
+   [ Stage 1: Text Normalization & Stemming ]
+     (Porter Stemming, Stopword Removal, 2-gram Collocations)
+                    │
+                    ▼
+   [ Stage 2: Supervised TF-IDF Vectorization ]
+     (Inverse Document Frequency across Municipal Corpus)
+                    │
+                    ▼
+   [ Stage 3: Cosine Similarity Matrix ]
+     (Pairwise dot product against recent observations: threshold ≥ 0.25)
+                    │
+                    ▼
+   [ Stage 4: Duplicate & Relationship Detector ]
+     (Calculates duplicate probability & shared keyword overlap)
+                    │
+                    ▼
+   [ Stage 5: Spatio-Temporal DBSCAN Clustering ]
+     (Haversine Distance ≤ 750 meters + Time Window ≤ 72 hours)
+                    │
+                    ▼
+   [ Stage 6: Explainable Risk Scoring Engine ]
+     (Score 0–100 decomposed into Severity, Density, Recurrence, Affected Area)
+                    │
+                    ▼
+   [ Stage 7: Responsible AI Gatekeeper ]
+     (Synthesizes Potential Incident Hypothesis → Requires Human Officer Review)
