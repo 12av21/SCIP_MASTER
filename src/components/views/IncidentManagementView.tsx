@@ -24,11 +24,14 @@ interface IncidentManagementViewProps {
 }
 
 export const IncidentManagementView: React.FC<IncidentManagementViewProps> = ({ onOpenReport }) => {
-  const { user, hasPermission } = useAuth();
+  const { user } = useAuth();
+  const canReviewIncidents = user?.role === 'authority' || user?.role === 'admin';
+  const canResolveIncidents = user?.role === 'officer' || canReviewIncidents;
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [officers, setOfficers] = useState<User[]>([]);
   const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [categoryFilter, setCategoryFilter] = useState('ALL');
@@ -52,22 +55,23 @@ export const IncidentManagementView: React.FC<IncidentManagementViewProps> = ({ 
 
   useEffect(() => {
     loadData();
-  }, []);
+  }, [user?.role]);
 
   const loadData = async () => {
     setIsLoading(true);
+    setErrorMessage(null);
     try {
       const [incRes, deptRes, userRes] = await Promise.all([
         api.getIncidents(),
-        api.getDepartments(),
-        api.getUsers()
+        canReviewIncidents ? api.getDepartments() : Promise.resolve([]),
+        canReviewIncidents ? api.getUsers() : Promise.resolve([])
       ]);
       setIncidents(incRes);
       setDepartments(deptRes);
       setOfficers(userRes.filter(u => u.role === 'officer' || u.role === 'authority'));
       if (deptRes.length > 0) setSelectedDeptId(deptRes[0].id);
-    } catch {
-      // Ignore
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to load incident management data.');
     } finally {
       setIsLoading(false);
     }
@@ -161,6 +165,13 @@ export const IncidentManagementView: React.FC<IncidentManagementViewProps> = ({ 
         </div>
       </div>
 
+      {errorMessage && (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 flex flex-wrap items-center justify-between gap-3">
+          <span>{errorMessage}</span>
+          <button onClick={loadData} className="font-semibold underline">Retry</button>
+        </div>
+      )}
+
       {/* Filter and Search Bar */}
       <div className="bg-white p-4 rounded-2xl border border-emerald-100/90 flex flex-wrap items-center justify-between gap-3 text-xs shadow-xs">
         <div className="flex items-center gap-2 flex-1 min-w-[200px] bg-emerald-50/20 px-3 py-1.5 rounded-xl border border-emerald-100">
@@ -205,7 +216,9 @@ export const IncidentManagementView: React.FC<IncidentManagementViewProps> = ({ 
       {/* Incidents Table */}
       <div className="bg-white rounded-2xl border border-emerald-100/80 overflow-hidden shadow-xs">
         {isLoading ? (
-          <div className="py-16 text-center text-xs text-slate-400">Loading incidents...</div>
+          <div role="status" className="py-16 text-center text-xs text-slate-400">Loading incidents...</div>
+        ) : errorMessage ? (
+          <div role="alert" className="py-16 text-center text-xs text-red-700">Incident data is unavailable.</div>
         ) : filteredIncidents.length === 0 ? (
           <div className="py-16 text-center text-xs text-slate-500">No matching incidents found.</div>
         ) : (
@@ -265,7 +278,7 @@ export const IncidentManagementView: React.FC<IncidentManagementViewProps> = ({ 
                       {inc.assignedDepartmentName || 'Unassigned'}
                     </td>
                     <td className="p-3.5 text-center whitespace-nowrap space-x-1.5">
-                      {inc.status === 'potential' && (
+                      {canReviewIncidents && inc.status === 'potential' && (
                         <button
                           onClick={() => {
                             setReviewingIncident(inc);
@@ -278,7 +291,7 @@ export const IncidentManagementView: React.FC<IncidentManagementViewProps> = ({ 
                         </button>
                       )}
 
-                      {(inc.status === 'confirmed' || inc.status === 'in_progress') && (
+                      {canResolveIncidents && (inc.status === 'confirmed' || inc.status === 'in_progress') && (
                         <button
                           onClick={() => {
                             setResolvingIncident(inc);

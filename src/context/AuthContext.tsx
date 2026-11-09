@@ -2,17 +2,16 @@
 import React, { createContext, useContext, useState, useEffect } from 'react';
 import { User, UserRole, UserPermission } from '../types/scip';
 import { api } from '../services/apiClient';
-import { db } from '../database/scipDatabase';
 
 interface AuthContextType {
   user: User | null;
   role: UserRole;
   isAuthenticated: boolean;
   isLoading: boolean;
-  login: (email: string, pass: string) => Promise<void>;
-  register: (payload: { name: string; email: string; password: string; role?: UserRole; phone?: string }) => Promise<void>;
+  authError: string | null;
+  login: (email: string, pass: string) => Promise<User>;
+  register: (payload: { name: string; email: string; password: string; phone?: string }) => Promise<User>;
   logout: () => Promise<void>;
-  switchDemoRole: (role: UserRole) => Promise<void>;
   hasPermission: (permission: UserPermission) => boolean;
 }
 
@@ -79,34 +78,65 @@ const ROLE_PERMISSIONS: Record<UserRole, UserPermission[]> = {
 export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children }) => {
   const [user, setUser] = useState<User | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [authError, setAuthError] = useState<string | null>(null);
 
   useEffect(() => {
-    // Initial user load from local storage if previously authenticated
-    const storedUser = api.getStoredUser();
-    const token = api.getToken();
-    if (storedUser && token) {
-      setUser(storedUser);
-    } else {
+    const controller = new AbortController();
+    const handleAuthExpired = () => {
       setUser(null);
+      setAuthError('Your sign-in session expired. Please sign in again.');
+    };
+    window.addEventListener('scip:auth-expired', handleAuthExpired);
+
+    if (!api.getToken()) {
+      api.setStoredUser(null);
+      setUser(null);
+      setIsLoading(false);
+    } else {
+      void api.getCurrentUser(controller.signal)
+        .then(currentUser => {
+          api.setStoredUser(currentUser);
+          setUser(currentUser);
+          setAuthError(null);
+        })
+        .catch(() => {
+          if (!controller.signal.aborted) {
+            setUser(null);
+            setAuthError(api.getToken()
+              ? 'Your saved session could not be verified. Check your connection or sign in again.'
+              : 'Your sign-in session expired. Please sign in again.');
+          }
+        })
+        .finally(() => {
+          if (!controller.signal.aborted) setIsLoading(false);
+        });
     }
-    setIsLoading(false);
+
+    return () => {
+      controller.abort();
+      window.removeEventListener('scip:auth-expired', handleAuthExpired);
+    };
   }, []);
 
   const login = async (email: string, pass: string) => {
     setIsLoading(true);
+    setAuthError(null);
     try {
       const res = await api.login({ email, password: pass });
       setUser(res.user);
+      return res.user;
     } finally {
       setIsLoading(false);
     }
   };
 
-  const register = async (payload: { name: string; email: string; password: string; role?: UserRole; phone?: string }) => {
+  const register = async (payload: { name: string; email: string; password: string; phone?: string }) => {
     setIsLoading(true);
+    setAuthError(null);
     try {
       const res = await api.register(payload);
       setUser(res.user);
+      return res.user;
     } finally {
       setIsLoading(false);
     }
@@ -115,18 +145,9 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
   const logout = async () => {
     await api.logout();
     setUser(null);
+    setAuthError(null);
     api.setStoredUser(null);
     api.setToken(null);
-  };
-
-  const switchDemoRole = async (targetRole: UserRole) => {
-    setIsLoading(true);
-    try {
-      const res = await api.demoLogin(targetRole);
-      setUser(res.user);
-    } finally {
-      setIsLoading(false);
-    }
   };
 
   const hasPermission = (permission: UserPermission): boolean => {
@@ -145,7 +166,7 @@ export const AuthProvider: React.FC<{ children: React.ReactNode }> = ({ children
         login,
         register,
         logout,
-        switchDemoRole,
+        authError,
         hasPermission
       }}
     >

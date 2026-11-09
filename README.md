@@ -45,7 +45,7 @@ Departmental Operational Dispatch & Remediation
 
 - **Frontend:** React 19, TypeScript, Vite 8, Tailwind CSS v4, Lucide Icons
 - **Backend:** Node.js, Express.js 4, TypeScript (`tsx` runtime engine)
-- **Database Architecture:** MongoDB & Mongoose-compatible schema engine with transactional indexing, audit logging hooks, and seed persistence
+- **Database Architecture:** MongoDB initialization and Mongoose models are present, but active root API routes still use the in-memory `SCIPDatabase`; business data is not durable across restarts.
 - **AI/ML Pipeline:**
   - NLP Text Preprocessing (Tokenization, domain stopwords pruning, Porter-style stemming, n-grams)
   - TF-IDF Vectorizer (L2-normalized feature representation)
@@ -80,19 +80,9 @@ The SCIP Intelligence Agent orchestrates 10 specialized tools:
 
 ---
 
-## 👥 4. Pre-Configured Test Accounts (Roles & Permissions)
+## 👥 4. Accounts and Role Access
 
-The platform comes pre-seeded with authenticated accounts representing every level of the municipal governance hierarchy:
-
-| Role | Name | Email | Password | Access Capabilities |
-|---|---|---|---|---|
-| **Admin** | Adarsh Verma | `admin@scip.gov` | `AdminPass123!` | Full system administration, RBAC, audit logs, diagnostics |
-| **Authority** | Dr. Rajesh Gupta | `director@scip.gov` | `DirectorPass123!` | Human review confirmation/dismissal, departmental dispatch |
-| **Officer** | Vikram Sharma | `officer.sharma@scip.gov` | `OfficerPass123!` | Field investigation, incident resolution, assignment tracking |
-| **Officer** | Sunita Patel | `officer.patel@scip.gov` | `OfficerPass123!` | Water & Sewerage field supervision |
-| **Citizen** | Priya Sharma | `citizen.jane@scip.gov` | `CitizenPass123!` | Observation submission, report tracking, feedback submission |
-
-*Note: You can instantly switch between test roles using the top navigation bar's **"Role:"** dropdown menu.*
+The application does not provide quick-login demo accounts or client-side role switching. Public registration creates a citizen account. Privileged municipal roles must be provisioned through the protected administration workflow in an isolated environment; never use shared or real user credentials for demonstrations.
 
 ---
 
@@ -114,13 +104,7 @@ Copy `.env.example` to `.env`:
 ```bash
 cp .env.example .env
 ```
-Default parameters are pre-configured:
-```env
-PORT=3000
-NODE_ENV=development
-JWT_SECRET=scip-master-secure-jwt-secret-key-2026
-MONGODB_URI=mongodb://127.0.0.1:27017/scip
-```
+Before starting the server, configure `JWT_SECRET` with a fresh, strong local-only value and `MONGODB_URI` to a disposable database that contains no user or production data. The root server initializes MongoDB during startup; do not run it until that database target has been independently confirmed safe. Do not copy credentials or connection strings from another environment.
 
 ### 3. Start Development Server
 ```bash
@@ -131,11 +115,11 @@ Open your browser at: `http://localhost:3000`
 
 ### 4. Build for Production
 ```bash
-# Validates TypeScript types and produces optimized production client bundle:
+# Produces the optimized production client bundle:
 npm run build
 ```
 
-### 5. Typecheck & Linting
+### 5. TypeScript validation
 ```bash
 npm run typecheck
 ```
@@ -156,11 +140,10 @@ All backend endpoints are mounted under `/api/*` and return consistent JSON stru
 ```
 
 ### Authentication (`/api/auth`)
-- `POST /api/auth/register` — Register citizen or officer account
-- `POST /api/auth/login` — Authenticate and receive JWT bearer token
-- `POST /api/auth/demo-login` — Switch active role for development evaluation
-- `GET /api/auth/me` — Retrieve active authenticated user profile
-- `POST /api/auth/logout` — Revoke session and log audit event
+- `POST /api/auth/register` — Register a citizen account
+- `POST /api/auth/login` — Authenticate and receive a JWT bearer token
+- `GET /api/auth/me` — Retrieve the active authenticated user profile
+- `POST /api/auth/logout` — Record logout activity; the client clears its stored token
 
 ### Reports (`/api/reports`)
 - `GET /api/reports` — List reports with category, status, urgency, or citizen filters

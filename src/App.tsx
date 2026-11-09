@@ -22,7 +22,7 @@ import { AuthModal } from './components/views/AuthModal';
 import { Report, Incident } from './types/scip';
 
 function SCIPMainLayout() {
-  const { user, role, isAuthenticated } = useAuth();
+  const { user, role, isAuthenticated, authError, hasPermission } = useAuth();
   const { activeTheme } = useTheme();
   const [currentTab, setCurrentTab] = useState<string>('home');
   const [isMobileSidebarOpen, setIsMobileSidebarOpen] = useState(false);
@@ -37,12 +37,28 @@ function SCIPMainLayout() {
 
   // Route protection guard
   useEffect(() => {
-    const publicTabs = ['home', 'about', 'tests'];
+    const publicTabs = ['home', 'about'];
     if (!isAuthenticated && !publicTabs.includes(currentTab)) {
       setCurrentTab('home');
       handleOpenAuth('login');
+      return;
     }
-  }, [currentTab, isAuthenticated]);
+
+    const requiredPermissionByTab: Record<string, 'intelligence.read' | 'analytics.read' | 'user.read' | 'admin.manage' | 'incident.read'> = {
+      incidents: 'incident.read',
+      'intel-dashboard': 'intelligence.read',
+      investigation: 'intelligence.read',
+      map: 'intelligence.read',
+      trends: 'analytics.read',
+      agent: 'intelligence.read',
+      'admin-panel': 'user.read',
+      tests: 'admin.manage'
+    };
+    const requiredPermission = requiredPermissionByTab[currentTab];
+    if (requiredPermission && !hasPermission(requiredPermission)) {
+      setCurrentTab(role === 'citizen' ? 'citizen-dashboard' : 'incidents');
+    }
+  }, [currentTab, hasPermission, isAuthenticated, role, user?.role]);
 
   const handleSelectReport = (report: Report) => {
     setActiveModalReportId(report.id);
@@ -81,6 +97,11 @@ function SCIPMainLayout() {
 
         {/* Dynamic Content Viewport */}
         <main className="flex-1 overflow-y-auto p-4 sm:p-6 md:p-8">
+          {authError && (
+            <div className="mb-4 rounded-lg border border-amber-200 bg-amber-50 px-4 py-3 text-sm text-amber-800" role="alert">
+              {authError}
+            </div>
+          )}
           {currentTab === 'home' && (
             <LandingPage onNavigate={setCurrentTab} onOpenAuth={handleOpenAuth} />
           )}
@@ -99,7 +120,7 @@ function SCIPMainLayout() {
 
           {currentTab === 'submit-report' && (
             <SubmitReportView
-              onReportCreated={() => {}}
+              onReportCreated={() => setCurrentTab('my-reports')}
               onNavigateToMyReports={() => setCurrentTab('my-reports')}
             />
           )}
@@ -147,7 +168,7 @@ function SCIPMainLayout() {
             <AdminPanelView />
           )}
 
-          {currentTab === 'tests' && (
+          {currentTab === 'tests' && user?.role === 'admin' && (
             <TestRunnerView />
           )}
         </main>

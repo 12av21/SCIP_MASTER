@@ -34,8 +34,8 @@ export const IntelligenceDashboard: React.FC<IntelligenceDashboardProps> = ({
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [reports, setReports] = useState<Report[]>([]);
   const [clusters, setClusters] = useState<SpatioTemporalCluster[]>([]);
-  const [trends, setTrends] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     loadDashboardData();
@@ -43,19 +43,18 @@ export const IntelligenceDashboard: React.FC<IntelligenceDashboardProps> = ({
 
   const loadDashboardData = async () => {
     setIsLoading(true);
+    setErrorMessage(null);
     try {
-      const [incRes, repRes, clusRes, trendRes] = await Promise.all([
+      const [incRes, repRes, clusRes] = await Promise.all([
         api.getIncidents(),
         api.getReports(),
-        api.getClusters(),
-        api.getTrends()
+        api.getClusters()
       ]);
       setIncidents(incRes);
       setReports(repRes);
       setClusters(clusRes);
-      setTrends(trendRes);
-    } catch {
-      // Ignore
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to load intelligence data.');
     } finally {
       setIsLoading(false);
     }
@@ -91,6 +90,14 @@ export const IntelligenceDashboard: React.FC<IntelligenceDashboardProps> = ({
         </div>
       </div>
 
+      {isLoading && <div role="status" className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">Loading intelligence data…</div>}
+      {errorMessage && (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 flex flex-wrap items-center justify-between gap-3">
+          <span>{errorMessage}</span>
+          <button onClick={loadDashboardData} className="font-semibold underline">Retry</button>
+        </div>
+      )}
+
       {/* KPI Cards Grid */}
       <div className="grid grid-cols-2 lg:grid-cols-4 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-emerald-100/80 shadow-xs">
@@ -99,7 +106,7 @@ export const IntelligenceDashboard: React.FC<IntelligenceDashboardProps> = ({
             <Sparkles className="w-4 h-4 text-amber-500" />
           </div>
           <div className="text-2xl font-bold text-amber-600 mt-2 font-mono tabular-nums">
-            {potentialIncidents.length}
+            {isLoading || errorMessage ? '—' : potentialIncidents.length}
           </div>
           <div className="text-[11px] text-slate-400 mt-1">Awaiting human review</div>
         </div>
@@ -110,7 +117,7 @@ export const IntelligenceDashboard: React.FC<IntelligenceDashboardProps> = ({
             <Radio className="w-4 h-4 text-emerald-600" />
           </div>
           <div className="text-2xl font-bold text-emerald-700 mt-2 font-mono tabular-nums">
-            {activeConfirmed.length}
+            {isLoading || errorMessage ? '—' : activeConfirmed.length}
           </div>
           <div className="text-[11px] text-slate-400 mt-1">Under departmental dispatch</div>
         </div>
@@ -121,7 +128,7 @@ export const IntelligenceDashboard: React.FC<IntelligenceDashboardProps> = ({
             <ShieldAlert className="w-4 h-4 text-rose-600" />
           </div>
           <div className="text-2xl font-bold text-rose-600 mt-2 font-mono tabular-nums">
-            {highPriorityCount}
+            {isLoading || errorMessage ? '—' : highPriorityCount}
           </div>
           <div className="text-[11px] text-slate-400 mt-1">Urgent physical hazard</div>
         </div>
@@ -132,7 +139,7 @@ export const IntelligenceDashboard: React.FC<IntelligenceDashboardProps> = ({
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           </div>
           <div className="text-2xl font-bold text-emerald-600 mt-2 font-mono tabular-nums">
-            {resolvedCount}
+            {isLoading || errorMessage ? '—' : resolvedCount}
           </div>
           <div className="text-[11px] text-slate-400 mt-1">Remediated & closed</div>
         </div>
@@ -194,7 +201,11 @@ export const IntelligenceDashboard: React.FC<IntelligenceDashboardProps> = ({
             <span className="text-[11px] text-slate-400 font-mono">DBSCAN Engine</span>
           </div>
 
-          {clusters.length === 0 ? (
+          {isLoading ? (
+            <div role="status" className="py-8 text-center text-xs text-slate-500">Loading clusters…</div>
+          ) : errorMessage ? (
+            <div role="alert" className="py-8 text-center text-xs text-red-700">Cluster data is unavailable.</div>
+          ) : clusters.length === 0 ? (
             <div className="py-8 text-center text-xs text-slate-500">
               No new unclustered incident patterns detected.
             </div>
@@ -244,7 +255,13 @@ export const IntelligenceDashboard: React.FC<IntelligenceDashboardProps> = ({
           </div>
 
           <div className="divide-y divide-slate-100">
-            {incidents.slice(0, 4).map(inc => (
+            {isLoading ? (
+              <div role="status" className="py-8 text-center text-xs text-slate-500">Loading incidents…</div>
+            ) : errorMessage ? (
+              <div role="alert" className="py-8 text-center text-xs text-red-700">Incident data is unavailable.</div>
+            ) : incidents.length === 0 ? (
+              <div className="py-8 text-center text-xs text-slate-500">No incidents to display.</div>
+            ) : incidents.slice(0, 4).map(inc => (
               <div
                 key={inc.id}
                 onClick={() => onSelectIncident(inc)}

@@ -31,7 +31,7 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   onClose,
   onSuccessNavigate
 }) => {
-  const { login, register, switchDemoRole } = useAuth();
+  const { login, register } = useAuth();
   const [mode, setMode] = useState<'login' | 'signup'>(initialMode);
 
   // Login Form States
@@ -44,7 +44,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
   const [signupName, setSignupName] = useState('');
   const [signupEmail, setSignupEmail] = useState('');
   const [signupPhone, setSignupPhone] = useState('');
-  const [signupRole, setSignupRole] = useState<UserRole>('citizen');
   const [signupPassword, setSignupPassword] = useState('');
   const [signupConfirmPassword, setSignupConfirmPassword] = useState('');
   const [agreeTerms, setAgreeTerms] = useState(false);
@@ -86,19 +85,9 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     setLoading(true);
     try {
-      await login(loginEmail, loginPassword);
+      const authenticatedUser = await login(loginEmail, loginPassword);
       onClose();
-      // Role will be updated in context; determine destination
-      const emailLower = loginEmail.toLowerCase();
-      if (emailLower.includes('admin')) {
-        navigateForRole('admin');
-      } else if (emailLower.includes('director') || emailLower.includes('auth')) {
-        navigateForRole('authority');
-      } else if (emailLower.includes('officer')) {
-        navigateForRole('officer');
-      } else {
-        navigateForRole('citizen');
-      }
+      navigateForRole(authenticatedUser.role);
     } catch (err: any) {
       setErrorMessage(err.message || 'Invalid credentials. Please verify your email and password.');
     } finally {
@@ -138,31 +127,16 @@ export const AuthModal: React.FC<AuthModalProps> = ({
 
     setLoading(true);
     try {
-      await register({
+      const registeredUser = await register({
         name: signupName,
         email: signupEmail,
         password: signupPassword,
-        role: signupRole,
         phone: signupPhone || undefined
       });
       onClose();
-      navigateForRole(signupRole);
+      navigateForRole(registeredUser.role);
     } catch (err: any) {
       setErrorMessage(err.message || 'Registration failed. An account with this email may already exist.');
-    } finally {
-      setLoading(false);
-    }
-  };
-
-  const handleQuickDemoLogin = async (role: UserRole) => {
-    setLoading(true);
-    setErrorMessage(null);
-    try {
-      await switchDemoRole(role);
-      onClose();
-      navigateForRole(role);
-    } catch (err: any) {
-      setErrorMessage(err.message || 'Failed to authenticate demo user.');
     } finally {
       setLoading(false);
     }
@@ -323,50 +297,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                 )}
               </button>
 
-              {/* Quick Demo Personas for Academic / MCA Evaluators */}
-              <div className="pt-4 mt-4 border-t border-slate-100">
-                <div className="text-[11px] font-bold uppercase tracking-wider text-slate-400 mb-2 flex items-center justify-between">
-                  <span>Evaluation & Demo Quick-Login</span>
-                  <span className="text-[10px] text-emerald-600 font-normal">1-Click Role Switch</span>
-                </div>
-                <div className="grid grid-cols-2 gap-2 text-xs">
-                  <button
-                    type="button"
-                    onClick={() => handleQuickDemoLogin('citizen')}
-                    className="p-2 rounded-lg border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/50 text-left transition-all"
-                  >
-                    <div className="font-semibold text-slate-800">Citizen</div>
-                    <div className="text-[10px] text-slate-500">Priya Sharma</div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleQuickDemoLogin('officer')}
-                    className="p-2 rounded-lg border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/50 text-left transition-all"
-                  >
-                    <div className="font-semibold text-slate-800">Field Officer</div>
-                    <div className="text-[10px] text-slate-500">Er. Vikram Sharma (PWD)</div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleQuickDemoLogin('authority')}
-                    className="p-2 rounded-lg border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/50 text-left transition-all"
-                  >
-                    <div className="font-semibold text-slate-800">Authority Director</div>
-                    <div className="text-[10px] text-slate-500">Dr. Rajesh Gupta</div>
-                  </button>
-
-                  <button
-                    type="button"
-                    onClick={() => handleQuickDemoLogin('admin')}
-                    className="p-2 rounded-lg border border-slate-200 hover:border-emerald-300 hover:bg-emerald-50/50 text-left transition-all"
-                  >
-                    <div className="font-semibold text-slate-800">System Admin</div>
-                    <div className="text-[10px] text-slate-500">Adarsh Verma (MCA)</div>
-                  </button>
-                </div>
-              </div>
             </form>
           )}
 
@@ -423,22 +353,6 @@ export const AuthModal: React.FC<AuthModalProps> = ({
                     />
                   </div>
                 </div>
-              </div>
-
-              <div>
-                <label className="block text-xs font-semibold text-slate-700 mb-1">
-                  Intended Platform Role
-                </label>
-                <select
-                  value={signupRole}
-                  onChange={e => setSignupRole(e.target.value as UserRole)}
-                  className="w-full text-xs px-3 py-2 bg-slate-50/50 border border-slate-200 rounded-lg text-slate-800 focus:outline-hidden focus:border-emerald-600 focus:bg-white transition-all"
-                >
-                  <option value="citizen">Citizen (Community Member — Observations & Status Tracking)</option>
-                  <option value="officer">Field Officer (Department Responder — Investigations & Resolution)</option>
-                  <option value="authority">Municipal Authority (Director — Command Dashboard & Decision Support)</option>
-                  <option value="admin">System Administrator (Governance, Audits & Platform Config)</option>
-                </select>
               </div>
 
               <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">

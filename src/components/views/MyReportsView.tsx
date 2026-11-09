@@ -30,6 +30,7 @@ export const MyReportsView: React.FC<MyReportsViewProps> = ({
   const [categoryFilter, setCategoryFilter] = useState('ALL');
   const [statusFilter, setStatusFilter] = useState('ALL');
   const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     loadReports();
@@ -37,12 +38,13 @@ export const MyReportsView: React.FC<MyReportsViewProps> = ({
 
   const loadReports = async () => {
     setIsLoading(true);
+    setErrorMessage(null);
     try {
       // If citizen, filter by their own reports
       const res = await api.getReports({ myOnly: user?.role === 'citizen' });
       setReports(res);
-    } catch {
-      // Ignore
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to load reports.');
     } finally {
       setIsLoading(false);
     }
@@ -137,10 +139,19 @@ export const MyReportsView: React.FC<MyReportsViewProps> = ({
         </div>
       </div>
 
+      {errorMessage && (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 flex flex-wrap items-center justify-between gap-3">
+          <span>{errorMessage}</span>
+          <button onClick={loadReports} className="font-semibold underline">Retry</button>
+        </div>
+      )}
+
       {/* Reports Table */}
       <div className="bg-white rounded-2xl border border-emerald-100/80 overflow-hidden shadow-xs">
         {isLoading ? (
-          <div className="py-16 text-center text-xs text-slate-400">Loading your reports...</div>
+          <div role="status" className="py-16 text-center text-xs text-slate-400">Loading your reports...</div>
+        ) : errorMessage ? (
+          <div role="alert" className="py-16 text-center text-xs text-red-700">Report data is unavailable.</div>
         ) : filtered.length === 0 ? (
           <div className="py-16 text-center text-xs text-slate-500 space-y-3">
             <FileCheck className="w-8 h-8 text-emerald-300 mx-auto" />

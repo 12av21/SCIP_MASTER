@@ -30,6 +30,7 @@ export const CitizenDashboard: React.FC<CitizenDashboardProps> = ({
   const [incidents, setIncidents] = useState<Incident[]>([]);
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -37,13 +38,16 @@ export const CitizenDashboard: React.FC<CitizenDashboardProps> = ({
 
   const loadData = async () => {
     setIsLoading(true);
+    setErrorMessage(null);
     try {
-      const rep = await api.getReports({ myOnly: true });
-      const inc = await api.getIncidents();
+      const [rep, inc] = await Promise.all([
+        api.getReports({ myOnly: true }),
+        api.getIncidents()
+      ]);
       setReports(rep);
       setIncidents(inc);
-    } catch {
-      // Ignore
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to load dashboard data.');
     } finally {
       setIsLoading(false);
     }
@@ -75,6 +79,14 @@ export const CitizenDashboard: React.FC<CitizenDashboardProps> = ({
         </button>
       </div>
 
+      {isLoading && <div role="status" className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">Loading your dashboard…</div>}
+      {errorMessage && (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 flex flex-wrap items-center justify-between gap-3">
+          <span>{errorMessage}</span>
+          <button onClick={loadData} className="font-semibold underline">Retry</button>
+        </div>
+      )}
+
       {/* KPI Stat Cards */}
       <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
         <div className="bg-white p-5 rounded-2xl border border-emerald-100/70 shadow-xs">
@@ -83,7 +95,7 @@ export const CitizenDashboard: React.FC<CitizenDashboardProps> = ({
             <FileText className="w-4 h-4 text-emerald-600/70" />
           </div>
           <div className="text-2xl font-bold text-slate-900 mt-2 font-mono tabular-nums">
-            {reports.length}
+            {isLoading || errorMessage ? '—' : reports.length}
           </div>
           <div className="text-[11px] text-slate-400 mt-1">Total lifetime submissions</div>
         </div>
@@ -94,7 +106,7 @@ export const CitizenDashboard: React.FC<CitizenDashboardProps> = ({
             <Clock className="w-4 h-4 text-emerald-600" />
           </div>
           <div className="text-2xl font-bold text-emerald-700 mt-2 font-mono tabular-nums">
-            {activeReportsCount}
+            {isLoading || errorMessage ? '—' : activeReportsCount}
           </div>
           <div className="text-[11px] text-emerald-600/80 mt-1">Currently being investigated</div>
         </div>
@@ -105,7 +117,7 @@ export const CitizenDashboard: React.FC<CitizenDashboardProps> = ({
             <CheckCircle2 className="w-4 h-4 text-emerald-600" />
           </div>
           <div className="text-2xl font-bold text-emerald-700 mt-2 font-mono tabular-nums">
-            {resolvedCount}
+            {isLoading || errorMessage ? '—' : resolvedCount}
           </div>
           <div className="text-[11px] text-emerald-600/80 mt-1">Action completed by authorities</div>
         </div>
@@ -153,7 +165,11 @@ export const CitizenDashboard: React.FC<CitizenDashboardProps> = ({
           </button>
         </div>
 
-        {reports.length === 0 ? (
+        {isLoading ? (
+          <div role="status" className="py-10 text-center text-sm text-slate-500">Loading reports…</div>
+        ) : errorMessage ? (
+          <div role="alert" className="py-10 text-center text-sm text-red-700">Reports are unavailable until the request succeeds.</div>
+        ) : reports.length === 0 ? (
           <div className="py-10 text-center space-y-2.5">
             <div className="w-10 h-10 rounded-full bg-slate-100 flex items-center justify-center text-slate-400 mx-auto">
               <FileText className="w-5 h-5" />

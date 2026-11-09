@@ -280,6 +280,17 @@ export interface SpatioTemporalCluster {
   timeSpanHours: number;
 }
 
+export interface TrendSummary {
+  totalReports: number;
+  totalIncidents: number;
+  activeIncidents: number;
+  potentialIncidents: number;
+  categoryCounts: Record<string, number>;
+  statusCounts: Record<string, number>;
+  dailyVolume: Record<string, number>;
+  incidentStatusCounts: Record<string, number>;
+}
+
 export interface AgentToolResult {
   toolName: string;
   status: 'success' | 'partial' | 'insufficient_evidence';

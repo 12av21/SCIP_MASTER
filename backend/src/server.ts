@@ -1,27 +1,15 @@
-import express from "express";
-import cors from "cors";
-import helmet from "helmet";
 import dotenv from "dotenv";
 import { connectDatabase } from "./config/database.js";
+import { app } from "./app.js";
 
 dotenv.config();
 
-const app = express();
+const jwtSecret = process.env.JWT_SECRET;
+if (!jwtSecret || Buffer.byteLength(jwtSecret, "utf8") < 32) {
+  throw new Error("JWT_SECRET must be configured with at least 32 UTF-8 bytes. Generate one with: node -e \"console.log(require('node:crypto').randomBytes(32).toString('base64url'))\"");
+}
 
 const PORT = process.env.PORT || 5000;
-
-app.use(helmet());
-app.use(cors());
-app.use(express.json());
-
-app.get("/api/health", (_req, res) => {
-  res.status(200).json({
-    success: true,
-    service: "SCIP Backend",
-    status: "healthy",
-    timestamp: new Date().toISOString()
-  });
-});
 
 async function startServer(): Promise<void> {
   try {
@@ -31,7 +19,7 @@ async function startServer(): Promise<void> {
       console.log(`SCIP backend running on port ${PORT}`);
     });
   } catch (error) {
-    console.error("Failed to start SCIP backend:", error);
+    console.error("Failed to start SCIP backend; check local MongoDB availability and configuration.");
     process.exit(1);
   }
 }

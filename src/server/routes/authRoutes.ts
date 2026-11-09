@@ -2,67 +2,29 @@
 import { Router, Response } from 'express';
 import bcrypt from 'bcryptjs';
 import jwt from 'jsonwebtoken';
-import { db } from '../../database/scipDatabase.js';
+import { getDb } from '../../database/initMongo.js';
 import { authenticate, AuthenticatedRequest, JWT_SECRET } from '../middleware/auth.js';
-import { UserRole } from '../../types/scip.js';
+import { verifyPassword } from '../auth/password.js';
+import { authRateLimiter, registerRateLimiter, validateBody, loginSchema, registerSchema } from '../middleware/security.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
 
 const router = Router();
 
+// Apply auth rate limiter to all auth routes
+router.use(authRateLimiter);
+
 // POST /api/auth/register
-router.post('/register', async (req, res: Response): Promise<void> => {
+router.post('/register', registerRateLimiter, validateBody(registerSchema), asyncHandler(async (req, res: Response): Promise<void> => {
   try {
-    const { name, email, password, role = 'citizen', phone } = req.body;
-
-    if (!name || !email || !password) {
-      res.status(400).json({
-        success: false,
-        message: 'Name, email, and password are required.',
-        errors: ['Missing required fields.']
-      });
-      return;
-    }
-
-    if (password.length < 8) {
-      res.status(400).json({
-        success: false,
-        message: 'Password must be at least 8 characters in length.',
-        errors: ['Weak password.']
-      });
-      return;
-    }
-
-    const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
-    if (!emailRegex.test(email)) {
-      res.status(400).json({
-        success: false,
-        message: 'Please provide a valid email address.',
-        errors: ['Invalid email format.']
-      });
-      return;
-    }
-
-    const existing = db.getUserByEmailWithPassword(email);
-    if (existing) {
-      res.status(409).json({
-        success: false,
-        message: 'An account with this email address already exists.',
-        errors: ['Duplicate email.']
-      });
-      return;
-    }
-
+    const { name, email, password, phone } = req.body;
     const salt = await bcrypt.genSalt(10);
     const passwordHash = await bcrypt.hash(password, salt);
 
-    const validRole: UserRole = ['citizen', 'officer', 'authority', 'admin'].includes(role)
-      ? role
-      : 'citizen';
-
-    const newUser = db.createUser({
+    const newUser = await getDb().createUser({
       name,
       email,
       passwordHash,
-      role: validRole,
+      role: 'citizen',
       phone,
       status: 'active'
     });
@@ -81,39 +43,34 @@ router.post('/register', async (req, res: Response): Promise<void> => {
         token
       }
     });
-  } catch (err: any) {
-    res.status(500).json({
-      success: false,
-      message: 'Failed to complete registration.',
-      errors: [err.message]
-    });
-  }
-});
-
-// POST /api/auth/login
-router.post('/login', async (req, res: Response): Promise<void> => {
-  try {
-    const { email, password } = req.body;
-
-    if (!email || !password) {
-      res.status(400).json({
+  } catch (err: unknown) {
+    if (err instanceof Error && err.message === 'DUPLICATE_EMAIL') {
+      res.status(409).json({
         success: false,
-        message: 'Email and password are required.',
-        errors: ['Missing credentials.']
+        message: 'An account with this email address already exists.',
+        errors: ['Duplicate email.']
       });
       return;
     }
+    throw err;
+  }
+}));
 
-    const userWithPassword = db.getUserByEmailWithPassword(email);
+// POST /api/auth/login
+router.post('/login', validateBody(loginSchema), asyncHandler(async (req, res: Response): Promise<void> => {
+  try {
+    const { email, password } = req.body;
+
+    const userWithPassword = await getDb().getUserByEmailWithPassword(email);
     if (!userWithPassword) {
-      db.logAudit({
+      await getDb().logAudit({
         action: 'LOGIN_FAILED',
         module: 'auth',
         userId: 'UNKNOWN',
         userEmail: email,
         userRole: 'citizen',
         ipAddress: req.ip || '127.0.0.1',
-        details: `Login attempt failed: Email not found`
+        details: 'Login attempt failed: Email not found'
       });
 
       res.status(401).json({
@@ -124,21 +81,12 @@ router.post('/login', async (req, res: Response): Promise<void> => {
       return;
     }
 
-    // Check password
-    let passwordMatch = false;
-    if (userWithPassword.passwordHash) {
-      // In development seed data we can check bcrypt or default pass
-      passwordMatch =
-        (await bcrypt.compare(password, userWithPassword.passwordHash)) ||
-        password === 'AdminPass123!' ||
-        password === 'DirectorPass123!' ||
-        password === 'OfficerPass123!' ||
-        password === 'CitizenPass123!' ||
-        password === 'Password123!';
-    }
+    const passwordMatch = userWithPassword.passwordHash
+      ? await verifyPassword(password, userWithPassword.passwordHash)
+      : false;
 
     if (!passwordMatch) {
-      db.logAudit({
+      await getDb().logAudit({
         action: 'LOGIN_FAILED',
         module: 'auth',
         userId: userWithPassword.id,
@@ -171,7 +119,7 @@ router.post('/login', async (req, res: Response): Promise<void> => {
       { expiresIn: '7d' }
     );
 
-    db.logAudit({
+    await getDb().logAudit({
       action: 'LOGIN_SUCCESS',
       module: 'auth',
       userId: userWithPassword.id,
@@ -190,47 +138,10 @@ router.post('/login', async (req, res: Response): Promise<void> => {
         token
       }
     });
-  } catch (err: any) {
-    res.status(500).json({
-      success: false,
-      message: 'Internal server error during login.',
-      errors: [err.message]
-    });
+  } catch (err) {
+    throw err;
   }
-});
-
-// POST /api/auth/demo-login
-// Fast switcher allowing evaluation of all 4 roles (citizen, officer, authority, admin)
-router.post('/demo-login', async (req, res: Response): Promise<void> => {
-  const { role } = req.body;
-  const users = db.getUsers();
-  const demoUser = users.find(u => u.role === role) || users[0];
-
-  const token = jwt.sign(
-    { id: demoUser.id, email: demoUser.email, role: demoUser.role },
-    JWT_SECRET,
-    { expiresIn: '7d' }
-  );
-
-  db.logAudit({
-    action: 'LOGIN_SUCCESS',
-    module: 'auth',
-    userId: demoUser.id,
-    userEmail: demoUser.email,
-    userRole: demoUser.role,
-    ipAddress: req.ip || '127.0.0.1',
-    details: `Demo session activated for role: ${demoUser.role} (${demoUser.name})`
-  });
-
-  res.json({
-    success: true,
-    message: `Switched session to ${demoUser.role} (${demoUser.name})`,
-    data: {
-      user: demoUser,
-      token
-    }
-  });
-});
+}));
 
 // GET /api/auth/me
 router.get('/me', authenticate, (req: AuthenticatedRequest, res: Response): void => {
@@ -241,9 +152,9 @@ router.get('/me', authenticate, (req: AuthenticatedRequest, res: Response): void
 });
 
 // POST /api/auth/logout
-router.post('/logout', authenticate, (req: AuthenticatedRequest, res: Response): void => {
+router.post('/logout', authenticate, asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
   if (req.user) {
-    db.logAudit({
+    await getDb().logAudit({
       action: 'LOGOUT',
       module: 'auth',
       userId: req.user.id,
@@ -257,6 +168,6 @@ router.post('/logout', authenticate, (req: AuthenticatedRequest, res: Response):
     success: true,
     message: 'Logged out successfully.'
   });
-});
+}));
 
 export default router;

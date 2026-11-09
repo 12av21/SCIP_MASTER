@@ -20,6 +20,7 @@ export const GeospatialIntelligenceView: React.FC = () => {
   const [selectedReportId, setSelectedReportId] = useState<string | null>(null);
   const [selectedIncident, setSelectedIncident] = useState<Incident | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   useEffect(() => {
     loadData();
@@ -27,6 +28,7 @@ export const GeospatialIntelligenceView: React.FC = () => {
 
   const loadData = async () => {
     setIsLoading(true);
+    setErrorMessage(null);
     try {
       const [reps, incs, hots] = await Promise.all([
         api.getReports(),
@@ -36,8 +38,8 @@ export const GeospatialIntelligenceView: React.FC = () => {
       setReports(reps);
       setIncidents(incs);
       setHotspots(hots);
-    } catch {
-      // Ignore
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to load geospatial data.');
     } finally {
       setIsLoading(false);
     }
@@ -52,6 +54,14 @@ export const GeospatialIntelligenceView: React.FC = () => {
           Geographic hazard distribution across Metro Municipal Corporation sectors.
         </p>
       </div>
+
+      {isLoading && <div role="status" className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">Loading map data…</div>}
+      {errorMessage && (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 flex flex-wrap items-center justify-between gap-3">
+          <span>{errorMessage}</span>
+          <button onClick={loadData} className="font-semibold underline">Retry</button>
+        </div>
+      )}
 
       {/* Main Map */}
       <GeospatialMap
@@ -71,12 +81,18 @@ export const GeospatialIntelligenceView: React.FC = () => {
             <h2 className="text-sm font-bold text-slate-900">Identified Municipal Hotspot Zones</h2>
           </div>
           <span className="text-xs font-mono text-slate-400 tabular-nums">
-            {hotspots.length} Geographic Clusters Identified
+            {isLoading || errorMessage ? '—' : hotspots.length} Geographic Clusters Identified
           </span>
         </div>
 
         <div className="grid grid-cols-1 sm:grid-cols-3 gap-4">
-          {hotspots.slice(0, 3).map((hot, idx) => (
+          {isLoading ? (
+            <div role="status" className="col-span-full py-8 text-center text-xs text-slate-500">Loading hotspot data…</div>
+          ) : errorMessage ? (
+            <div role="alert" className="col-span-full py-8 text-center text-xs text-red-700">Hotspot data is unavailable.</div>
+          ) : hotspots.length === 0 ? (
+            <div className="col-span-full py-8 text-center text-xs text-slate-500">No hotspot data is available.</div>
+          ) : hotspots.slice(0, 3).map((hot, idx) => (
             <div key={idx} className="p-4 rounded-lg bg-slate-50 border border-slate-200 space-y-2">
               <div className="flex items-center justify-between">
                 <span className="font-semibold text-xs text-slate-900">{hot.location}</span>

@@ -10,8 +10,6 @@ import {
   ShieldCheck,
   Search,
   Filter,
-  CheckCircle2,
-  AlertTriangle
 } from 'lucide-react';
 
 export const AdminPanelView: React.FC = () => {
@@ -19,8 +17,8 @@ export const AdminPanelView: React.FC = () => {
   const [users, setUsers] = useState<User[]>([]);
   const [departments, setDepartments] = useState<Department[]>([]);
   const [auditLogs, setAuditLogs] = useState<AuditLog[]>([]);
-  const [systemStats, setSystemStats] = useState<any>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
   // Audit filters
   const [auditModuleFilter, setAuditModuleFilter] = useState('ALL');
@@ -32,6 +30,7 @@ export const AdminPanelView: React.FC = () => {
 
   const loadAdminData = async () => {
     setIsLoading(true);
+    setErrorMessage(null);
     try {
       const [u, d, a] = await Promise.all([
         api.getUsers(),
@@ -41,14 +40,8 @@ export const AdminPanelView: React.FC = () => {
       setUsers(u);
       setDepartments(d);
       setAuditLogs(a);
-      setSystemStats({
-        nodeVersion: 'v22.14.0',
-        platform: 'Linux x64 (AI Studio Container)',
-        databaseStatus: 'Active & Verified',
-        auditCount: a.length
-      });
-    } catch {
-      // Ignore
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to load administration data.');
     } finally {
       setIsLoading(false);
     }
@@ -86,6 +79,14 @@ export const AdminPanelView: React.FC = () => {
         </p>
       </div>
 
+      {isLoading && <div role="status" className="rounded-xl border border-slate-200 bg-white px-4 py-3 text-sm text-slate-600">Loading administration data…</div>}
+      {errorMessage && (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 flex flex-wrap items-center justify-between gap-3">
+          <span>{errorMessage}</span>
+          <button onClick={loadAdminData} className="font-semibold underline">Retry</button>
+        </div>
+      )}
+
       {/* Tabs */}
       <div className="flex items-center gap-1 border-b border-slate-200 text-xs">
         <button
@@ -97,7 +98,7 @@ export const AdminPanelView: React.FC = () => {
           }`}
         >
           <Users className="w-3.5 h-3.5" />
-          <span>User Management ({users.length})</span>
+          <span>User Management ({isLoading || errorMessage ? '—' : users.length})</span>
         </button>
 
         <button
@@ -109,7 +110,7 @@ export const AdminPanelView: React.FC = () => {
           }`}
         >
           <Building2 className="w-3.5 h-3.5" />
-          <span>Departments ({departments.length})</span>
+          <span>Departments ({isLoading || errorMessage ? '—' : departments.length})</span>
         </button>
 
         <button
@@ -121,7 +122,7 @@ export const AdminPanelView: React.FC = () => {
           }`}
         >
           <FileCheck2 className="w-3.5 h-3.5" />
-          <span>Audit & Security Logs ({auditLogs.length})</span>
+          <span>Audit & Security Logs ({isLoading || errorMessage ? '—' : auditLogs.length})</span>
         </button>
 
         <button
@@ -152,7 +153,9 @@ export const AdminPanelView: React.FC = () => {
               </tr>
             </thead>
             <tbody className="divide-y divide-slate-100 text-slate-700">
-              {users.map(u => (
+              {users.length === 0 ? (
+                <tr><td colSpan={6} className="p-6 text-center text-slate-500">{isLoading ? 'Loading users…' : errorMessage ? 'User data is unavailable.' : 'No users found.'}</td></tr>
+              ) : users.map(u => (
                 <tr key={u.id} className="hover:bg-slate-50">
                   <td className="p-3 font-semibold text-slate-900">{u.name}</td>
                   <td className="p-3 font-mono text-[11px] text-slate-500">{u.email}</td>
@@ -189,7 +192,9 @@ export const AdminPanelView: React.FC = () => {
       {/* Tab 2: Department Management */}
       {activeTab === 'departments' && (
         <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-          {departments.map(dept => (
+          {departments.length === 0 ? (
+            <div className="col-span-full rounded-lg border border-slate-200 bg-white p-8 text-center text-xs text-slate-500">{isLoading ? 'Loading departments…' : errorMessage ? 'Department data is unavailable.' : 'No departments found.'}</div>
+          ) : departments.map(dept => (
             <div key={dept.id} className="bg-white rounded-lg border border-slate-200 p-5 space-y-3">
               <div className="flex items-center justify-between border-b border-slate-100 pb-2">
                 <span className="font-mono text-xs font-bold text-indigo-700 bg-indigo-50 px-2 py-0.5 rounded border border-indigo-200">
@@ -254,7 +259,9 @@ export const AdminPanelView: React.FC = () => {
                 </tr>
               </thead>
               <tbody className="divide-y divide-slate-100 text-slate-700">
-                {filteredLogs.map(log => (
+                {filteredLogs.length === 0 ? (
+                  <tr><td colSpan={6} className="p-6 text-center text-slate-500">{isLoading ? 'Loading audit logs…' : errorMessage ? 'Audit log data is unavailable.' : 'No audit logs found.'}</td></tr>
+                ) : filteredLogs.map(log => (
                   <tr key={log.id} className="hover:bg-slate-50">
                     <td className="p-3 font-mono text-[11px] text-slate-400 whitespace-nowrap tabular-nums">
                       {new Date(log.timestamp).toLocaleString()}
@@ -288,22 +295,9 @@ export const AdminPanelView: React.FC = () => {
       {activeTab === 'system' && (
         <div className="bg-white rounded-lg border border-slate-200 p-6 space-y-6 text-xs">
           <h2 className="text-sm font-bold text-slate-900">Runtime Diagnostics & Platform Health</h2>
-          <div className="grid grid-cols-1 sm:grid-cols-2 gap-4">
-            <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 space-y-1.5">
-              <div className="text-slate-400 text-[10px] uppercase font-semibold">Node Environment</div>
-              <div className="font-semibold text-slate-900 text-sm">{systemStats?.nodeVersion}</div>
-              <div className="text-slate-500">{systemStats?.platform}</div>
-            </div>
-
-            <div className="p-4 rounded-lg bg-slate-50 border border-slate-200 space-y-1.5">
-              <div className="text-slate-400 text-[10px] uppercase font-semibold">Database Engine</div>
-              <div className="font-semibold text-emerald-700 text-sm flex items-center gap-1.5">
-                <CheckCircle2 className="w-4 h-4 text-emerald-600" />
-                <span>Operational & Indexed</span>
-              </div>
-              <div className="text-slate-500">Mongoose-compatible schemas & in-memory transactional ledger</div>
-            </div>
-          </div>
+          <p role="status" className="text-slate-600">
+            Runtime and database health are unavailable because the active API does not expose a system-diagnostics endpoint.
+          </p>
         </div>
       )}
     </div>

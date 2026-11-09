@@ -1,8 +1,16 @@
 // SCIP Backend - Administrative & Governance Routes
 
 import { Router, Response } from 'express';
-import { db } from '../../database/scipDatabase.js';
+import { getDb } from '../../database/initMongo.js';
 import { authenticate, AuthenticatedRequest, requirePermission, requireRole } from '../middleware/auth.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
+import {
+  auditLogQuerySchema,
+  paginationQuerySchema,
+  updateUserRoleSchema,
+  validateBody,
+  validateQuery
+} from '../middleware/security.js';
 
 const router = Router();
 
@@ -11,14 +19,18 @@ router.get(
   '/users',
   authenticate,
   requirePermission('user.read'),
-  (req: AuthenticatedRequest, res: Response): void => {
-    const users = db.getUsers();
+  validateQuery(paginationQuerySchema),
+  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const page = Number(req.query.page);
+    const pageSize = Number(req.query.pageSize);
+    const users = await getDb().getUsers({ skip: (page - 1) * pageSize, limit: pageSize });
+    const total = await getDb().countUsers();
     res.json({
       success: true,
       data: users,
-      meta: { total: users.length }
+      meta: { total, page, pageSize }
     });
-  }
+  })
 );
 
 // PUT /api/admin/users/:id/role
@@ -26,40 +38,41 @@ router.put(
   '/users/:id/role',
   authenticate,
   requirePermission('admin.manage'),
-  (req: AuthenticatedRequest, res: Response): void => {
+  validateBody(updateUserRoleSchema),
+  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       const { role } = req.body;
-      if (!role) {
-        res.status(400).json({ success: false, message: 'Role is required.' });
-        return;
-      }
-
-      const updated = db.updateUserRole(req.params.id, role, req.user!);
+      const updated = await getDb().updateUserRole(req.params.id, role, req.user!);
       res.json({
         success: true,
         message: `User role updated to ${role}.`,
         data: updated
       });
-    } catch (err: any) {
-      res.status(400).json({
-        success: false,
-        message: err.message
-      });
+    } catch (err: unknown) {
+      if (err instanceof Error && err.message === 'User not found') {
+        res.status(404).json({ success: false, message: err.message });
+        return;
+      }
+      throw err;
     }
-  }
+  })
 );
 
 // GET /api/admin/departments
 router.get(
   '/departments',
   authenticate,
-  (req: AuthenticatedRequest, res: Response): void => {
-    const depts = db.getDepartments();
+  validateQuery(paginationQuerySchema),
+  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const page = Number(req.query.page);
+    const pageSize = Number(req.query.pageSize);
+    const depts = await getDb().getDepartments({ skip: (page - 1) * pageSize, limit: pageSize });
     res.json({
       success: true,
-      data: depts
+      data: depts,
+      meta: { page, pageSize }
     });
-  }
+  })
 );
 
 // GET /api/admin/audit-logs
@@ -67,21 +80,28 @@ router.get(
   '/audit-logs',
   authenticate,
   requirePermission('audit.read'),
-  (req: AuthenticatedRequest, res: Response): void => {
+  validateQuery(auditLogQuerySchema),
+  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const { module, action, userId } = req.query;
-
-    const logs = db.getAuditLogs({
+    const page = Number(req.query.page);
+    const pageSize = Number(req.query.pageSize);
+    const filters = {
       module: module ? String(module) : undefined,
       action: action ? String(action) : undefined,
       userId: userId ? String(userId) : undefined
-    });
+    };
+    const pagination = { skip: (page - 1) * pageSize, limit: pageSize };
+    const [logs, total] = await Promise.all([
+      getDb().getAuditLogs(filters, pagination),
+      getDb().countAuditLogs(filters)
+    ]);
 
     res.json({
       success: true,
       data: logs,
-      meta: { total: logs.length }
+      meta: { total, page, pageSize }
     });
-  }
+  })
 );
 
 // GET /api/admin/system-stats
@@ -89,8 +109,9 @@ router.get(
   '/system-stats',
   authenticate,
   requireRole(['authority', 'admin']),
-  (req: AuthenticatedRequest, res: Response): void => {
+  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     const mem = process.memoryUsage();
+    const counts = await getDb().countRecords();
     res.json({
       success: true,
       data: {
@@ -103,15 +124,15 @@ router.get(
           rssMB: Math.round(mem.rss / 1024 / 1024)
         },
         database: {
-          status: 'CONNECTED_IN_MEMORY_PERSISTED',
-          usersCount: db.getUsers().length,
-          reportsCount: db.getReports().length,
-          incidentsCount: db.getIncidents().length,
-          auditLogsCount: db.getAuditLogs().length
+          status: 'CONNECTED_MONGODB_PERSISTED',
+          usersCount: counts.users,
+          reportsCount: counts.reports,
+          incidentsCount: counts.incidents,
+          auditLogsCount: counts.auditLogs
         }
       }
     });
-  }
+  })
 );
 
 export default router;

@@ -1,5 +1,5 @@
 // SCIP Operations - Report Investigation & Similarity Linking View
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../../services/apiClient.js';
 import { Report, AIAnalysis, Incident } from '../../types/scip.js';
 import { ReportDetailModal } from './ReportDetailModal.js';
@@ -23,6 +23,10 @@ export const ReportInvestigationView: React.FC = () => {
   const [searchTerm, setSearchTerm] = useState('');
   const [inspectModalId, setInspectModalId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [errorMessage, setErrorMessage] = useState<string | null>(null);
+  const [analysisError, setAnalysisError] = useState<string | null>(null);
+  const [isAnalysisLoading, setIsAnalysisLoading] = useState(false);
+  const analysisRequestId = useRef(0);
 
   useEffect(() => {
     loadData();
@@ -30,6 +34,7 @@ export const ReportInvestigationView: React.FC = () => {
 
   const loadData = async () => {
     setIsLoading(true);
+    setErrorMessage(null);
     try {
       const [reps, incs] = await Promise.all([
         api.getReports(),
@@ -40,20 +45,28 @@ export const ReportInvestigationView: React.FC = () => {
       if (reps.length > 0) {
         handleSelectReport(reps[0]);
       }
-    } catch {
-      // Ignore
+    } catch (error) {
+      setErrorMessage(error instanceof Error ? error.message : 'Unable to load investigation data.');
     } finally {
       setIsLoading(false);
     }
   };
 
   const handleSelectReport = async (rep: Report) => {
+    const requestId = ++analysisRequestId.current;
     setSelectedReport(rep);
+    setAnalysis(null);
+    setAnalysisError(null);
+    setIsAnalysisLoading(true);
     try {
       const res = await api.getReportById(rep.id);
-      setAnalysis(res.analysis);
-    } catch {
-      // Ignore
+      if (requestId === analysisRequestId.current) setAnalysis(res.analysis);
+    } catch (error) {
+      if (requestId === analysisRequestId.current) {
+        setAnalysisError(error instanceof Error ? error.message : 'Unable to load report analysis.');
+      }
+    } finally {
+      if (requestId === analysisRequestId.current) setIsAnalysisLoading(false);
     }
   };
 
@@ -79,6 +92,13 @@ export const ReportInvestigationView: React.FC = () => {
         </p>
       </div>
 
+      {errorMessage && (
+        <div role="alert" className="rounded-xl border border-red-200 bg-red-50 px-4 py-3 text-sm text-red-800 flex flex-wrap items-center justify-between gap-3">
+          <span>{errorMessage}</span>
+          <button onClick={loadData} className="font-semibold underline">Retry</button>
+        </div>
+      )}
+
       <div className="grid grid-cols-1 lg:grid-cols-3 gap-6">
         {/* Left Column: Report List */}
         <div className="bg-white rounded-lg border border-slate-200 overflow-hidden flex flex-col h-[700px]">
@@ -96,7 +116,13 @@ export const ReportInvestigationView: React.FC = () => {
           </div>
 
           <div className="flex-1 overflow-y-auto divide-y divide-slate-100">
-            {filteredReports.map(rep => {
+            {isLoading ? (
+              <div role="status" className="p-6 text-center text-xs text-slate-500">Loading reports…</div>
+            ) : errorMessage ? (
+              <div role="alert" className="p-6 text-center text-xs text-red-700">Report data is unavailable.</div>
+            ) : filteredReports.length === 0 ? (
+              <div className="p-6 text-center text-xs text-slate-500">No reports available for investigation.</div>
+            ) : filteredReports.map(rep => {
               const isSelected = selectedReport?.id === rep.id;
               return (
                 <div
@@ -124,7 +150,14 @@ export const ReportInvestigationView: React.FC = () => {
 
         {/* Right 2 Columns: Detailed Investigation Dossier */}
         <div className="lg:col-span-2 space-y-5">
-          {selectedReport ? (
+          {isAnalysisLoading ? (
+            <div role="status" className="rounded-lg border border-slate-200 bg-white p-8 text-center text-sm text-slate-500">Loading report analysis…</div>
+          ) : analysisError ? (
+            <div role="alert" className="rounded-lg border border-red-200 bg-red-50 p-8 text-center text-sm text-red-700">
+              <p>{analysisError}</p>
+              {selectedReport && <button onClick={() => handleSelectReport(selectedReport)} className="mt-2 font-semibold underline">Retry</button>}
+            </div>
+          ) : selectedReport ? (
             <div className="bg-white rounded-lg border border-slate-200 p-6 space-y-6">
               {/* Header */}
               <div className="flex flex-wrap items-center justify-between gap-3 border-b border-slate-200 pb-4">

@@ -1,8 +1,8 @@
 // SCIP Citizen Portal - Submit Report with Real-Time AI Suggestion & Validation
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { api } from '../../services/apiClient';
 import { Report, ReportCategory, UrgencyLevel, AIAnalysis } from '../../types/scip';
-import { classifyReport, extractEntities, determineSeverity } from '../../ai/classifier';
+import { classifyReport } from '../../ai/classifier';
 import {
   FileText,
   MapPin,
@@ -17,6 +17,11 @@ import {
 interface SubmitReportViewProps {
   onReportCreated?: (report: Report, analysis: AIAnalysis) => void;
   onNavigateToMyReports?: () => void;
+}
+
+interface LocalAiSuggestion {
+  predictedCategory: ReportCategory;
+  confidence: number;
 }
 
 const PRESET_LOCATIONS = [
@@ -40,8 +45,9 @@ export const SubmitReportView: React.FC<SubmitReportViewProps> = ({
   const [longitude, setLongitude] = useState(77.2091);
   const [urgency, setUrgency] = useState<UrgencyLevel>('medium');
 
-  const [aiSuggestion, setAiSuggestion] = useState<any>(null);
+  const [aiSuggestion, setAiSuggestion] = useState<LocalAiSuggestion | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
+  const submissionInFlight = useRef(false);
   const [submittedResult, setSubmittedResult] = useState<{ report: Report; analysis: AIAnalysis } | null>(null);
   const [errorMessage, setErrorMessage] = useState('');
 
@@ -50,13 +56,9 @@ export const SubmitReportView: React.FC<SubmitReportViewProps> = ({
     const text = `${title} ${description}`;
     if (text.trim().length > 10) {
       const cls = classifyReport(text);
-      const ent = extractEntities(text);
-      const sev = determineSeverity(text, urgency);
       setAiSuggestion({
         predictedCategory: cls.predictedCategory,
-        confidence: cls.confidence,
-        entities: ent,
-        severity: sev
+        confidence: cls.confidence
       });
     } else {
       setAiSuggestion(null);
@@ -79,6 +81,7 @@ export const SubmitReportView: React.FC<SubmitReportViewProps> = ({
     e.preventDefault();
     setErrorMessage('');
 
+    if (submissionInFlight.current) return;
     if (title.trim().length < 5) {
       setErrorMessage('Please provide a descriptive title (at least 5 characters).');
       return;
@@ -88,11 +91,12 @@ export const SubmitReportView: React.FC<SubmitReportViewProps> = ({
       return;
     }
 
+    submissionInFlight.current = true;
     setIsSubmitting(true);
     try {
       const res = await api.createReport({
-        title,
-        description,
+        title: title.trim(),
+        description: description.trim(),
         category,
         locationName,
         latitude,
@@ -105,6 +109,7 @@ export const SubmitReportView: React.FC<SubmitReportViewProps> = ({
     } catch (err: any) {
       setErrorMessage(err.message || 'Failed to submit report.');
     } finally {
+      submissionInFlight.current = false;
       setIsSubmitting(false);
     }
   };
@@ -136,7 +141,7 @@ export const SubmitReportView: React.FC<SubmitReportViewProps> = ({
             </div>
           </div>
           <p className="text-xs text-emerald-800 leading-relaxed">
-            Your community observation has been entered into the SCIP database and processed through the automated AI intelligence pipeline.
+            Your observation was accepted by the SCIP API, and the response includes its analysis results.
           </p>
         </div>
 
@@ -272,7 +277,7 @@ export const SubmitReportView: React.FC<SubmitReportViewProps> = ({
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-1.5 font-semibold text-emerald-950">
                 <Sparkles className="w-3.5 h-3.5 text-emerald-600" />
-                <span>AI Categorization Suggestion</span>
+                <span>Local AI Preview (not backend-confirmed)</span>
               </div>
               <span className="font-mono text-[11px] text-emerald-700 font-semibold tabular-nums">
                 {(aiSuggestion.confidence * 100).toFixed(0)}% Match
@@ -280,7 +285,7 @@ export const SubmitReportView: React.FC<SubmitReportViewProps> = ({
             </div>
             <div className="flex flex-wrap items-center justify-between gap-2 text-slate-700">
               <span>
-                Based on your description, this best matches category: <strong className="text-emerald-950">{aiSuggestion.predictedCategory}</strong>
+                Local preview based on your current text; the backend may return a different analysis: <strong className="text-emerald-950">{aiSuggestion.predictedCategory}</strong>
               </span>
               {category !== aiSuggestion.predictedCategory && (
                 <button

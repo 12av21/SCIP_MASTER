@@ -49,8 +49,7 @@ export const Sidebar: React.FC<SidebarProps> = ({
     onCloseMobile();
   };
 
-  const isOfficerOrAbove = role === 'officer' || role === 'authority' || role === 'admin';
-  const isAuthorityOrAbove = role === 'authority' || role === 'admin';
+  const canReadIntelligence = hasPermission('intelligence.read');
 
   return (
     <>
@@ -188,12 +187,12 @@ export const Sidebar: React.FC<SidebarProps> = ({
           <div>
             <div className="px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
               <span>Operations & Intel</span>
-              {!isOfficerOrAbove && (
-                <span className="text-[10px] text-amber-600 font-normal lowercase">(officer preview)</span>
+              {!canReadIntelligence && (
+                <span className="text-[10px] text-slate-400 font-normal lowercase">(restricted)</span>
               )}
             </div>
             <nav className="space-y-0.5">
-              <button
+              {hasPermission('intelligence.read') && <button
                 onClick={() => handleNav('intel-dashboard')}
                 className={`w-full flex items-center gap-3 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
                   currentTab === 'intel-dashboard'
@@ -203,8 +202,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               >
                 <Radio className={`w-4 h-4 shrink-0 ${currentTab === 'intel-dashboard' ? 'text-emerald-600' : 'text-slate-400'}`} />
                 <span>Intelligence Command</span>
-              </button>
-              <button
+              </button>}
+              {hasPermission('incident.read') && <button
                 onClick={() => handleNav('incidents')}
                 className={`w-full flex items-center gap-3 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
                   currentTab === 'incidents'
@@ -214,8 +213,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               >
                 <AlertOctagon className={`w-4 h-4 shrink-0 ${currentTab === 'incidents' ? 'text-emerald-600' : 'text-slate-400'}`} />
                 <span>Incident Queue & Review</span>
-              </button>
-              <button
+              </button>}
+              {hasPermission('intelligence.read') && <button
                 onClick={() => handleNav('investigation')}
                 className={`w-full flex items-center gap-3 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
                   currentTab === 'investigation'
@@ -225,8 +224,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               >
                 <Search className={`w-4 h-4 shrink-0 ${currentTab === 'investigation' ? 'text-emerald-600' : 'text-slate-400'}`} />
                 <span>Report Investigation</span>
-              </button>
-              <button
+              </button>}
+              {hasPermission('intelligence.read') && <button
                 onClick={() => handleNav('map')}
                 className={`w-full flex items-center gap-3 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
                   currentTab === 'map'
@@ -236,8 +235,8 @@ export const Sidebar: React.FC<SidebarProps> = ({
               >
                 <MapPin className={`w-4 h-4 shrink-0 ${currentTab === 'map' ? 'text-emerald-600' : 'text-slate-400'}`} />
                 <span>Geospatial Intelligence</span>
-              </button>
-              <button
+              </button>}
+              {hasPermission('analytics.read') && <button
                 onClick={() => handleNav('trends')}
                 className={`w-full flex items-center gap-3 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
                   currentTab === 'trends'
@@ -247,72 +246,48 @@ export const Sidebar: React.FC<SidebarProps> = ({
               >
                 <TrendingUp className={`w-4 h-4 shrink-0 ${currentTab === 'trends' ? 'text-emerald-600' : 'text-slate-400'}`} />
                 <span>Trends & Recurrence</span>
-              </button>
+              </button>}
             </nav>
           </div>
 
           {/* SCIP Agent Console */}
-          <div>
-            <div className="px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
-              AI Decision Support
+          {hasPermission('intelligence.read') && (
+            <div>
+              <div className="px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">AI Decision Support</div>
+              <nav className="space-y-0.5">
+                <button onClick={() => handleNav('agent')} className={`w-full flex items-center gap-3 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${currentTab === 'agent' ? 'bg-emerald-50 text-emerald-800 font-semibold shadow-xs' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}>
+                  <Cpu className={`w-4 h-4 shrink-0 ${currentTab === 'agent' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                  <span>SCIP Intelligence Agent</span>
+                </button>
+              </nav>
             </div>
-            <nav className="space-y-0.5">
-              <button
-                onClick={() => handleNav('agent')}
-                className={`w-full flex items-center gap-3 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
-                  currentTab === 'agent'
-                    ? 'bg-emerald-50 text-emerald-800 font-semibold shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <Cpu className={`w-4 h-4 shrink-0 ${currentTab === 'agent' ? 'text-emerald-600' : 'text-slate-400'}`} />
-                <span>SCIP Intelligence Agent</span>
-              </button>
-            </nav>
-          </div>
+          )}
 
           {/* Governance & Administration */}
-          <div>
-            <div className="px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1 flex items-center justify-between">
-              <span>Governance</span>
-              {!isAuthorityOrAbove && (
-                <span className="text-[10px] text-amber-600 font-normal lowercase">(admin preview)</span>
-              )}
+          {hasPermission('user.read') && (
+            <div>
+              <div className="px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Governance</div>
+              <nav className="space-y-0.5">
+                <button onClick={() => handleNav('admin-panel')} className={`w-full flex items-center gap-3 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${currentTab === 'admin-panel' ? 'bg-emerald-50 text-emerald-800 font-semibold shadow-xs' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}>
+                  <ShieldCheck className={`w-4 h-4 shrink-0 ${currentTab === 'admin-panel' ? 'text-emerald-600' : 'text-slate-400'}`} />
+                  <span>Admin & Audit Trail</span>
+                </button>
+              </nav>
             </div>
-            <nav className="space-y-0.5">
-              <button
-                onClick={() => handleNav('admin-panel')}
-                className={`w-full flex items-center gap-3 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
-                  currentTab === 'admin-panel'
-                    ? 'bg-emerald-50 text-emerald-800 font-semibold shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <ShieldCheck className={`w-4 h-4 shrink-0 ${currentTab === 'admin-panel' ? 'text-emerald-600' : 'text-slate-400'}`} />
-                <span>Admin & Audit Trail</span>
-              </button>
-            </nav>
-          </div>
+          )}
 
           {/* Verification & Quality Audit */}
-          <div>
-            <div className="px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">
-              Verification
+          {hasPermission('admin.manage') && (
+            <div>
+              <div className="px-3 text-[11px] font-semibold text-slate-400 uppercase tracking-wider mb-1">Verification</div>
+              <nav className="space-y-0.5">
+                <button onClick={() => handleNav('tests')} className={`w-full flex items-center gap-3 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${currentTab === 'tests' ? 'bg-emerald-50 text-emerald-800 font-semibold shadow-xs' : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'}`}>
+                  <CheckCircle2 className={`w-4 h-4 shrink-0 ${currentTab === 'tests' ? 'text-emerald-600' : 'text-emerald-500'}`} />
+                  <span>22-Point Audit Suite</span>
+                </button>
+              </nav>
             </div>
-            <nav className="space-y-0.5">
-              <button
-                onClick={() => handleNav('tests')}
-                className={`w-full flex items-center gap-3 px-3 py-2 text-xs font-medium rounded-lg transition-colors ${
-                  currentTab === 'tests'
-                    ? 'bg-emerald-50 text-emerald-800 font-semibold shadow-xs'
-                    : 'text-slate-600 hover:bg-slate-50 hover:text-slate-900'
-                }`}
-              >
-                <CheckCircle2 className={`w-4 h-4 shrink-0 ${currentTab === 'tests' ? 'text-emerald-600' : 'text-emerald-500'}`} />
-                <span>22-Point Audit Suite</span>
-              </button>
-            </nav>
-          </div>
+          )}
 
           {/* Design System & Color Theme Studio */}
           <div>

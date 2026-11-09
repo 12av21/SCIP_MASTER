@@ -1,0 +1,154 @@
+{
+  "planHash": "0c82c053eed5dc5f9a38693e293ab4f0dca47836773c04b02741ce9eb8695eec",
+  "phase": "standalone",
+  "recordedAtUtc": "2026-11-07T07:34:50.3819944Z",
+  "retryCount": 1,
+  "resetBaseline": false,
+  "complete": true,
+  "result": {
+    "setupSucceeded": true,
+    "setupDurationMs": 0,
+    "setupFailureOutput": null,
+    "assertions": [
+      {
+        "name": "root-build",
+        "kind": "process",
+        "verificationMethod": "exit-code",
+        "passed": true,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": 0,
+        "outputSample": "\r\n\u003E react-example@0.0.0 build\r\n\u003E vite build\r\n\r\n\u001B[36mvite v8.3.5 \u001B[32mbuilding client environment for production...\u001B[36m\u001B[39m\r\ntransforming...\r\n\u2713 1692 modules transformed.\r\nrendering chunks...\r\ncomputing gzip size...\r\ndist/index.html                   1.14 kB \u2502 gzip:   0.50 kB\r\ndist/assets/index-D3FS4rdi.css   77.34 kB \u2502 gzip:  17.42 kB\r\ndist/assets/index-CmRFvAm5.js   966.01 kB \u2502 gzip: 245.00 kB\r\n\r\n\u001B[32m\u2713 built in 17.29s\u001B[39m\r\n\u001B[33m[plugin builtin:vite-reporter] \r\n(!) Some chunks are larger than 500 kB after minification. Consider:\r\n- Using dynamic import() to code-split the application\r\n- Use build.rolldownOptions.output.codeSplitting to improve chunking: https://rolldown.rs/reference/OutputOptions.codeSplitting\r\n- Adjust chunk size limit for this warning via build.chunkSizeWarningLimit.\u001B[39m\r\n\u001B[33m\u001B[33m[PLUGIN_TIMINGS] \u001B[0mJavaScript callbacks ran for 15.8s of this 17.3s build (91%).\r\nThe slowest callbacks, timed inside each callback (the wait before a callback starts is excluded, the time it awaits is included):\r\n  - plugin @tailwindcss/vite:generate:build transform (78%, 13.5s, 1 call)\r\nAdditional callback time came from callbacks under 1s.\r\nSee https://rolldown.rs/reference/InputOptions.checks#bundlertimings for more details.\r\n\u001B[39m\r\n",
+        "durationMs": 32105
+      },
+      {
+        "name": "frontend-typecheck",
+        "kind": "process",
+        "verificationMethod": "exit-code",
+        "passed": true,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": 0,
+        "outputSample": "",
+        "durationMs": 12617
+      },
+      {
+        "name": "root-typecheck",
+        "kind": "process",
+        "verificationMethod": "exit-code",
+        "passed": false,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": 1,
+        "outputSample": "\r\n\u003E react-example@0.0.0 typecheck\r\n\u003E tsc --noEmit\r\n\r\nTopBar.tsx(3,25): error TS2307: Cannot find module \u0027../../context/AuthContext\u0027 or its corresponding type declarations.\r\nTopBar.tsx(4,26): error TS2307: Cannot find module \u0027../../context/ThemeContext\u0027 or its corresponding type declarations.\r\nbackend/tests/auth.test.ts(75,90): error TS2769: No overload matches this call.\r\n  The last overload gave the following error.\r\n    Object literal may only specify known properties, and \u0027isActive\u0027 does not exist in type \u0027{ _id?: ObjectIdQueryTypeCasting | undefined; $assertPopulated?: (\u003CPaths = {}\u003E(path: string | string[], values?: Partial\u003CPaths\u003E | undefined) =\u003E PopulateDocumentResult\u003C...\u003E) | undefined; ... 66 more ...; updatedAt?: RegExp | ... 1 more ... | undefined; }\u0027.\r\nbackend/tests/runtime_integration.test.ts(65,5): error TS2769: No overload matches this call.\r\n  The last overload gave the following error.\r\n    Type \u0027string\u0027 is not assignable to type \u0027RegExp | (string \u0026 NativeDate) | undefined\u0027.\r\nbackend/tests/runtime_integration.test.ts(67,21): error TS2339: Property \u0027id\u0027 does not exist on type \u0027never\u0027.\r\nbackend/tests/runtime_integration.test.ts(75,5): error TS2769: No overload matches this call.\r\n  The last overload gave the following error.\r\n    Type \u0027string\u0027 is not assignable to type \u0027RegExp | (string \u0026 NativeDate) | undefined\u0027.\r\nbackend/tests/runtime_integration.test.ts(76,5): error TS2769: No overload matches this call.\r\n  The last overload gave the following error.\r\n    Type \u0027string\u0027 is not assignable to type \u0027RegExp | (string \u0026 NativeDate) | undefined\u0027.\r\nbackend/tests/runtime_integration.test.ts(78,23): error TS2339: Property \u0027id\u0027 does not exist on type \u0027never\u0027.\r\nbackend/tests/runtime_integration.test.ts(88,5): error TS2769: No overload matches this call.\r\n  The last overload gave the following error.\r\n    Type \u0027string\u0027 is not assignable to type \u0027RegExp | (string \u0026 NativeDate) | undefined\u0027.\r\nbackend/tests/runtime_integration.test.ts(89,5): error TS2769: No overload matches this call.\r\n  The last overload gave the following error.\r\n    Type \u0027string\u0027 is not assignable to type \u0027RegExp | (string \u0026 NativeDate) | undefined\u0027.\r\nbackend/tests/runtime_integration.test.ts(91,23): error TS2339: Property \u0027id\u0027 does not exist on type \u0027never\u0027.\r\nbackend/tests/runtime_integration.test.ts(99,5): error TS2769: No overload matches this call.\r\n  The last overload gave the following error.\r\n    Type \u0027string\u0027 is not assignable to type \u0027RegExp | (string \u0026 NativeDate) | undefined\u0027.\r\nbackend/tests/runtime_integration.test.ts(100,5): error TS2769: No overload matches this call.\r\n  The last overload gave the following error.\r\n    Type \u0027string\u0027 is not assignable to type \u0027RegExp | (string \u0026 NativeDate) | undefined\u0027.\r\nbackend/tests/runtime_integration.test.ts(102,27): error TS2339: Property \u0027id\u0027 does not exist on type \u0027never\u0027.\r\nbackend/tests/runtime_integration.test.ts(110,5): error TS2769: No overload matches this call.\r\n  The last overload gave the following error.\r\n    Type \u0027string\u0027 is not assignable to type \u0027RegExp | (string \u0026 NativeDate) | undefined\u0027.\r\nbackend/tests/runtime_integration.test.ts(111,5): error TS2769: No overload matches this call.\r\n  The last overload gave the following error.\r\n    Type \u0027string\u0027 is not assignable to type \u0027RegExp | (string \u0026 NativeDate) | undefined\u0027.\r\nbackend/tests/runtime_integration.test.ts(113,19): error TS2339: Property \u0027id\u0027 does not exist on type \u0027never\u0027.\r\nbackend/tests/runtime_integration.test.ts(210,22): error TS2339: Property \u0027id\u0027 does not exist on type \u0027{ name: string; email: string; passwordHash: string; role: \u0022admin\u0022 | \u0022authority\u0022 | \u0022citizen\u0022 | \u0022officer\u0022; departmentId?: string | null | undefined; departmentName?: string | null | undefined; phone?: string | ... 1 more ... | undefined; status: \u0022active\u0022 | \u0022suspended\u0022; createdAt: string; updatedAt: string; } \u0026 Defaul...\u0027.\r\nbackend/tests/runtime_integration.test.ts(241,129): error TS2769: No overload matches this call.\r\n  The last overload gave the following error.\r\n    Type \u0027string\u0027 is not assignable to type \u0027RegExp | (string \u0026 NativeDate) | undefined\u0027.\r\nback\n\u2026[truncated]",
+        "durationMs": 33344
+      },
+      {
+        "name": "tests-pass",
+        "kind": "process",
+        "verificationMethod": "test-results",
+        "passed": true,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": 0,
+        "outputSample": "TAP version 13\r\n# Subtest: public registration accepts only the citizen role\r\nok 1 - public registration accepts only the citizen role\r\n  ---\r\n  duration_ms: 14.0162\r\n  type: \u0027test\u0027\r\n  ...\r\n# Subtest: password verification accepts only the password matching the stored hash\r\nok 2 - password verification accepts only the password matching the stored hash\r\n  ---\r\n  duration_ms: 85.4637\r\n  type: \u0027test\u0027\r\n  ...\r\n# Subtest: development-only endpoints require explicit opt-in and a loopback client\r\nok 3 - development-only endpoints require explicit opt-in and a loopback client\r\n  ---\r\n  duration_ms: 3.8107\r\n  type: \u0027test\u0027\r\n  ...\r\n1..3\r\n# tests 3\r\n# suites 0\r\n# pass 3\r\n# fail 0\r\n# cancelled 0\r\n# skipped 0\r\n# todo 0\r\n# duration_ms 2750.165\r\n",
+        "durationMs": 3259,
+        "testResults": {
+          "testFramework": "unknown",
+          "runnerDetectedFrom": "none",
+          "testsTotal": 0,
+          "testsPassed": 0,
+          "testsFailed": 0,
+          "testsSkipped": 0,
+          "parseFailed": true
+        }
+      },
+      {
+        "name": "frontend-serves-home",
+        "kind": "http-probe",
+        "verificationMethod": "http-status",
+        "passed": true,
+        "timedOut": false,
+        "skipped": false,
+        "skippedReason": null,
+        "exitCode": null,
+        "outputSample": "HTTP 200\n\u003C!DOCTYPE html\u003E\r\n\u003Chtml lang=\u0022en\u0022\u003E\r\n  \u003Chead\u003E\n    \u003Cscript type=\u0022module\u0022\u003Eimport { injectIntoGlobalHook } from \u0022/@react-refresh\u0022;\ninjectIntoGlobalHook(window);\nwindow.$RefreshReg$ = () =\u003E {};\nwindow.$RefreshSig$ = () =\u003E (type) =\u003E type;\u003C/script\u003E\n\n    \u003Cscript type=\u0022module\u0022 src=\u0022/@vite/client\u0022\u003E\u003C/script\u003E\n\r\n    \u003Cmeta charset=\u0022UTF-8\u0022 /\u003E\r\n    \u003Clink rel=\u0022icon\u0022 type=\u0022image/svg\u002Bxml\u0022 href=\u0022/vite.svg\u0022 /\u003E\r\n    \u003Cmeta name=\u0022viewport\u0022 content=\u0022width=device-width, initial-scale=1.0\u0022 /\u003E\r\n    \u003Ctitle\u003ESmart Community Intelligence Platform\u003C/title\u003E\r\n  \u003C/head\u003E\r\n  \u003Cbody\u003E\r\n    \u003Cdiv id=\u0022root\u0022\u003E\u003C/div\u003E\r\n    \u003Cscript type=\u0022module\u0022 src=\u0022/src/main.tsx\u0022\u003E\u003C/script\u003E\r\n  \u003C/body\u003E\r\n\u003C/html\u003E",
+        "durationMs": 493
+      }
+    ],
+    "executions": [
+      {
+        "source": "root-build",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.CMD",
+        "args": [
+          "run",
+          "build"
+        ],
+        "cwd": "E:\\projects\\SCIP_MASTER",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      },
+      {
+        "source": "frontend-typecheck",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npx.CMD",
+        "args": [
+          "tsc",
+          "--noEmit"
+        ],
+        "cwd": "E:\\projects\\SCIP_MASTER\\frontend",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      },
+      {
+        "source": "root-typecheck",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.CMD",
+        "args": [
+          "run",
+          "typecheck"
+        ],
+        "cwd": "E:\\projects\\SCIP_MASTER",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      },
+      {
+        "source": "tests-pass",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\node.EXE",
+        "args": [
+          "--import",
+          "tsx",
+          "--test",
+          "backend/tests/security_controls.test.ts"
+        ],
+        "cwd": "E:\\projects\\SCIP_MASTER",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      },
+      {
+        "source": "frontend-serves-home",
+        "resolvedExecutable": "C:\\Program Files\\nodejs\\npm.CMD",
+        "args": [
+          "run",
+          "dev",
+          "--",
+          "--host",
+          "127.0.0.1",
+          "--strictPort",
+          "--port",
+          "5173"
+        ],
+        "cwd": "E:\\projects\\SCIP_MASTER\\frontend",
+        "env": {},
+        "prependPath": [],
+        "platform": "win32"
+      }
+    ]
+  }
+}

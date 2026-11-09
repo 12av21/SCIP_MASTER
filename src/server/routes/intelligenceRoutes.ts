@@ -1,17 +1,37 @@
 // SCIP Backend - Intelligence & Analytical Pipelines Routes
 
 import { Router, Response } from 'express';
-import { db } from '../../database/scipDatabase.js';
+import { getDb } from '../../database/initMongo.js';
 import { authenticate, AuthenticatedRequest, requirePermission } from '../middleware/auth.js';
 import { SCIPIntelligenceAgent } from '../../ai/scipAgent.js';
 import { detectIncidentClusters } from '../../ai/incidentClustering.js';
+import { aiAgentRateLimiter, validateBody, aiAgentQuerySchema } from '../middleware/security.js';
+import { asyncHandler } from '../middleware/asyncHandler.js';
+import type { Incident, Report } from '../../types/scip.js';
 
 const router = Router();
 
 // Helper to instantiate agent with active database snapshot
-function getAgentInstance(): SCIPIntelligenceAgent {
-  const reports = db.getReports();
-  const incidents = db.getIncidents();
+async function loadAllReports(): Promise<Report[]> {
+  const reports: Report[] = [];
+  for (let skip = 0; ; skip += 100) {
+    const page = await getDb().getReports(undefined, { skip, limit: 100 });
+    reports.push(...page);
+    if (page.length < 100) return reports;
+  }
+}
+
+async function loadAllIncidents(): Promise<Incident[]> {
+  const incidents: Incident[] = [];
+  for (let skip = 0; ; skip += 100) {
+    const page = await getDb().getIncidents(undefined, { skip, limit: 100 });
+    incidents.push(...page);
+    if (page.length < 100) return incidents;
+  }
+}
+
+async function getAgentInstance(): Promise<SCIPIntelligenceAgent> {
+  const [reports, incidents] = await Promise.all([loadAllReports(), loadAllIncidents()]);
   return new SCIPIntelligenceAgent({ reports, incidents });
 }
 
@@ -19,34 +39,30 @@ function getAgentInstance(): SCIPIntelligenceAgent {
 // Executes multi-tool intelligence request with transparency & uncertainty disclaimers
 router.post(
   '/agent',
+  aiAgentRateLimiter,
   authenticate,
   requirePermission('intelligence.read'),
-  (req: AuthenticatedRequest, res: Response): void => {
+  validateBody(aiAgentQuerySchema),
+  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
       const { query, specificTool } = req.body;
-      if (!query) {
-        res.status(400).json({
-          success: false,
-          message: 'An intelligence query or intent prompt is required.'
-        });
-        return;
-      }
 
-      const agent = getAgentInstance();
+      const agent = await getAgentInstance();
       const briefing = agent.executeIntelligenceQuery(query, specificTool);
 
       res.json({
         success: true,
         data: briefing
       });
-    } catch (err: any) {
+    } catch (error) {
+      console.error(`[SCIP] Intelligence agent request failed (${error instanceof Error ? error.name : 'UnknownError'}).`);
       res.status(500).json({
         success: false,
         message: 'Agent execution failed.',
-        errors: [err.message]
+        errors: ['An unexpected error occurred']
       });
     }
-  }
+  })
 );
 
 // GET /api/intelligence/clusters
@@ -55,9 +71,9 @@ router.get(
   '/clusters',
   authenticate,
   requirePermission('intelligence.read'),
-  (req: AuthenticatedRequest, res: Response): void => {
+  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
     try {
-      const reports = db.getReports();
+      const reports = await loadAllReports();
       const clusters = detectIncidentClusters(reports);
 
       res.json({
@@ -68,14 +84,15 @@ router.get(
           clusteredReportsCount: clusters.reduce((acc, c) => acc + c.reportCount, 0)
         }
       });
-    } catch (err: any) {
+    } catch (error) {
+      console.error(`[SCIP] Cluster computation failed (${error instanceof Error ? error.name : 'UnknownError'}).`);
       res.status(500).json({
         success: false,
         message: 'Failed to compute incident clusters.',
-        errors: [err.message]
+        errors: ['An unexpected error occurred']
       });
     }
-  }
+  })
 );
 
 // GET /api/intelligence/hotspots
@@ -83,8 +100,8 @@ router.get(
   '/hotspots',
   authenticate,
   requirePermission('intelligence.read'),
-  (req: AuthenticatedRequest, res: Response): void => {
-    const reports = db.getReports();
+  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const reports = await loadAllReports();
 
     // Group reports by primary location or geo-bins
     const locationMap = new Map<string, { count: number; lat: number; lng: number; categories: Set<string>; reports: string[] }>();
@@ -118,7 +135,7 @@ router.get(
       success: true,
       data: hotspots
     });
-  }
+  })
 );
 
 // GET /api/intelligence/trends
@@ -126,9 +143,8 @@ router.get(
   '/trends',
   authenticate,
   requirePermission('analytics.read'),
-  (req: AuthenticatedRequest, res: Response): void => {
-    const reports = db.getReports();
-    const incidents = db.getIncidents();
+  asyncHandler(async (req: AuthenticatedRequest, res: Response): Promise<void> => {
+    const [reports, incidents] = await Promise.all([loadAllReports(), loadAllIncidents()]);
 
     // Category breakdown
     const categoryCounts: Record<string, number> = {};
@@ -168,7 +184,7 @@ router.get(
         incidentStatusCounts
       }
     });
-  }
+  })
 );
 
 export default router;

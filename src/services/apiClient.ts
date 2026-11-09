@@ -12,11 +12,9 @@ import {
   Department,
   Notification,
   Feedback,
-  UserRole
+  UserRole,
+  TrendSummary
 } from '../types/scip.js';
-import { db } from '../database/scipDatabase.js';
-import { SCIPIntelligenceAgent } from '../ai/scipAgent.js';
-import { detectIncidentClusters } from '../ai/incidentClustering.js';
 
 const TOKEN_KEY = 'scip_auth_token';
 const USER_KEY = 'scip_auth_user';
@@ -77,204 +75,46 @@ class APIClient {
       headers.set('Authorization', `Bearer ${token}`);
     }
 
+    let response: Response;
     try {
-      const res = await fetch(endpoint, {
-        ...options,
-        headers
-      });
+      response = await fetch(endpoint, { ...options, headers });
+    } catch (error) {
+      if (options.signal?.aborted) throw error;
+      throw new Error('Unable to reach the SCIP API. Check the server connection and try again.');
+    }
 
-      if (!res.ok) {
-        const errJson = await res.json().catch(() => ({}));
-        throw new Error(errJson.message || `Request failed with status ${res.status}`);
+    const responseText = await response.text();
+    let responseData: unknown;
+    if (responseText) {
+      try {
+        responseData = JSON.parse(responseText);
+      } catch {
+        if (response.ok) throw new Error('The SCIP API returned an invalid response.');
       }
-
-      return await res.json();
-    } catch (err: any) {
-      // If network fails (e.g. static Vite dev without express active), handle via internal DB fallback
-      return this.handleLocalFallback<T>(endpoint, options);
-    }
-  }
-
-  private handleLocalFallback<T>(endpoint: string, options: RequestInit): Promise<T> {
-    const method = options.method || 'GET';
-    const body = options.body ? JSON.parse(options.body as string) : {};
-
-    // Auth routes fallback
-    if (endpoint === '/api/auth/demo-login') {
-      const users = db.getUsers();
-      const user = users.find(u => u.role === body.role) || users[0];
-      const token = `mock-token-${user.id}`;
-      this.setToken(token);
-      this.setStoredUser(user);
-      return Promise.resolve({ success: true, data: { user, token } } as any);
     }
 
-    if (endpoint === '/api/auth/login') {
-      const user = db.getUserByEmailWithPassword(body.email);
-      if (!user) throw new Error('Invalid email or password.');
-      const token = `mock-token-${user.id}`;
-      const { passwordHash, ...safe } = user;
-      this.setToken(token);
-      this.setStoredUser(safe as User);
-      return Promise.resolve({ success: true, data: { user: safe, token } } as any);
-    }
-
-    if (endpoint === '/api/auth/register') {
-      const user = db.createUser(body);
-      const token = `mock-token-${user.id}`;
-      this.setToken(token);
-      this.setStoredUser(user);
-      return Promise.resolve({ success: true, data: { user, token } } as any);
-    }
-
-    // Reports routes fallback
-    if (endpoint.startsWith('/api/reports')) {
-      if (method === 'GET') {
-        const id = endpoint.split('/')[3];
-        if (id) {
-          const report = db.getReportById(id);
-          const analysis = db.getAIAnalysisForReport(id);
-          return Promise.resolve({ success: true, data: { report, analysis } } as any);
+    if (!response.ok) {
+      if (response.status === 401 && token && !['/api/auth/login', '/api/auth/register'].includes(endpoint)) {
+        this.setToken(null);
+        this.setStoredUser(null);
+        if (typeof window !== 'undefined') {
+          window.dispatchEvent(new Event('scip:auth-expired'));
         }
-        const reports = db.getReports();
-        return Promise.resolve({ success: true, data: reports } as any);
       }
-      if (method === 'POST') {
-        const currentUser = this.getStoredUser() || db.getUsers().find(u => u.role === 'citizen')!;
-        const { report, analysis } = db.createReport({
-          ...body,
-          citizenId: currentUser.id,
-          citizenName: currentUser.name,
-          citizenEmail: currentUser.email
-        });
-        return Promise.resolve({ success: true, data: { report, analysis } } as any);
-      }
+
+      const message = typeof responseData === 'object' && responseData !== null && 'message' in responseData && typeof responseData.message === 'string'
+        ? responseData.message
+        : `Request failed with status ${response.status}`;
+      throw new Error(message);
     }
 
-    // Incidents routes fallback
-    if (endpoint.startsWith('/api/incidents')) {
-      if (method === 'GET') {
-        const id = endpoint.split('/')[3];
-        if (id) {
-          const incident = db.getIncidentById(id);
-          const allReports = db.getReports();
-          const linkedReports = allReports.filter(r => incident?.reportIds.includes(r.id));
-          return Promise.resolve({ success: true, data: { incident, linkedReports } } as any);
-        }
-        return Promise.resolve({ success: true, data: db.getIncidents() } as any);
-      }
-      if (endpoint === '/api/incidents/from-cluster') {
-        const currentUser = this.getStoredUser() || db.getUsers().find(u => u.role === 'authority')!;
-        const incident = db.createIncidentFromCluster(body.cluster, currentUser);
-        return Promise.resolve({ success: true, data: incident } as any);
-      }
-      if (endpoint.includes('/review')) {
-        const id = endpoint.split('/')[3];
-        const currentUser = this.getStoredUser() || db.getUsers().find(u => u.role === 'authority')!;
-        const updated = db.reviewIncident(id, body.action, currentUser, body.notes, body.departmentId, body.officerId);
-        return Promise.resolve({ success: true, data: updated } as any);
-      }
-      if (endpoint.includes('/resolve')) {
-        const id = endpoint.split('/')[3];
-        const currentUser = this.getStoredUser() || db.getUsers().find(u => u.role === 'officer')!;
-        const resolved = db.resolveIncident(id, currentUser, body);
-        return Promise.resolve({ success: true, data: resolved } as any);
-      }
-    }
-
-    // Intelligence routes fallback
-    if (endpoint === '/api/intelligence/agent') {
-      const agent = new SCIPIntelligenceAgent({
-        reports: db.getReports(),
-        incidents: db.getIncidents()
-      });
-      const brief = agent.executeIntelligenceQuery(body.query, body.specificTool);
-      return Promise.resolve({ success: true, data: brief } as any);
-    }
-
-    if (endpoint === '/api/intelligence/clusters') {
-      const clusters = detectIncidentClusters(db.getReports());
-      return Promise.resolve({ success: true, data: clusters } as any);
-    }
-
-    if (endpoint === '/api/intelligence/hotspots') {
-      const reports = db.getReports();
-      const locationMap = new Map<string, any>();
-      for (const r of reports) {
-        const existing = locationMap.get(r.locationName) || {
-          location: r.locationName,
-          latitude: r.latitude,
-          longitude: r.longitude,
-          reportCount: 0,
-          categories: new Set()
-        };
-        existing.reportCount += 1;
-        existing.categories.add(r.category);
-        locationMap.set(r.locationName, existing);
-      }
-      const data = Array.from(locationMap.values()).map(d => ({
-        ...d,
-        categories: Array.from(d.categories),
-        densityIndex: Math.min(100, d.reportCount * 20),
-        isHighRisk: d.reportCount >= 3
-      })).sort((a, b) => b.reportCount - a.reportCount);
-      return Promise.resolve({ success: true, data } as any);
-    }
-
-    if (endpoint === '/api/intelligence/trends') {
-      const reports = db.getReports();
-      const incidents = db.getIncidents();
-      const categoryCounts: Record<string, number> = {};
-      reports.forEach(r => { categoryCounts[r.category] = (categoryCounts[r.category] || 0) + 1; });
-      const statusCounts: Record<string, number> = {};
-      reports.forEach(r => { statusCounts[r.status] = (statusCounts[r.status] || 0) + 1; });
-      const dailyVolume: Record<string, number> = {};
-      reports.forEach(r => {
-        const d = r.createdAt.split('T')[0];
-        dailyVolume[d] = (dailyVolume[d] || 0) + 1;
-      });
-      return Promise.resolve({
-        success: true,
-        data: {
-          totalReports: reports.length,
-          totalIncidents: incidents.length,
-          activeIncidents: incidents.filter(i => i.status !== 'resolved').length,
-          potentialIncidents: incidents.filter(i => i.status === 'potential').length,
-          categoryCounts,
-          statusCounts,
-          dailyVolume
-        }
-      } as any);
-    }
-
-    // Admin routes fallback
-    if (endpoint === '/api/admin/users') {
-      return Promise.resolve({ success: true, data: db.getUsers() } as any);
-    }
-    if (endpoint === '/api/admin/departments') {
-      return Promise.resolve({ success: true, data: db.getDepartments() } as any);
-    }
-    if (endpoint.startsWith('/api/admin/audit-logs')) {
-      return Promise.resolve({ success: true, data: db.getAuditLogs() } as any);
-    }
-
-    // Misc fallback
-    if (endpoint === '/api/health') {
-      return Promise.resolve({ status: 'healthy', platform: 'SCIP', services: { api: 'operational', database: 'connected' } } as any);
-    }
-    if (endpoint === '/api/notifications') {
-      const user = this.getStoredUser() || db.getUsers()[0];
-      const notifs = db.getNotificationsForUser(user.id);
-      return Promise.resolve({ success: true, data: notifs, unreadCount: notifs.filter(n => !n.read).length } as any);
-    }
-
-    return Promise.resolve({ success: true, data: null } as any);
+    return responseData as T;
   }
 
   // --- Public API Methods ---
 
   // Auth
-  public async register(payload: { name: string; email: string; password: string; role?: UserRole; phone?: string }) {
+  public async register(payload: { name: string; email: string; password: string; phone?: string }) {
     const res = await this.request<{ success: boolean; data: { user: User; token: string } }>('/api/auth/register', {
       method: 'POST',
       body: JSON.stringify(payload)
@@ -284,20 +124,15 @@ class APIClient {
     return res.data;
   }
 
+  public async getCurrentUser(signal?: AbortSignal): Promise<User> {
+    const response = await this.request<{ success: boolean; data: User }>('/api/auth/me', { signal });
+    return response.data;
+  }
+
   public async login(payload: { email: string; password: string }) {
     const res = await this.request<{ success: boolean; data: { user: User; token: string } }>('/api/auth/login', {
       method: 'POST',
       body: JSON.stringify(payload)
-    });
-    this.setToken(res.data.token);
-    this.setStoredUser(res.data.user);
-    return res.data;
-  }
-
-  public async demoLogin(role: UserRole) {
-    const res = await this.request<{ success: boolean; data: { user: User; token: string } }>('/api/auth/demo-login', {
-      method: 'POST',
-      body: JSON.stringify({ role })
     });
     this.setToken(res.data.token);
     this.setStoredUser(res.data.user);
@@ -413,8 +248,8 @@ class APIClient {
     return res.data;
   }
 
-  public async getTrends() {
-    const res = await this.request<{ success: boolean; data: any }>('/api/intelligence/trends');
+  public async getTrends(signal?: AbortSignal): Promise<TrendSummary> {
+    const res = await this.request<{ success: boolean; data: TrendSummary }>('/api/intelligence/trends', { signal });
     return res.data;
   }
 

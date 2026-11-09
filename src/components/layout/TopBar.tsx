@@ -1,19 +1,17 @@
 // SCIP Layout - Enterprise Light Top Navigation Bar
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useRef } from 'react';
 import { useAuth } from '../../context/AuthContext';
 import { useTheme } from '../../context/ThemeContext';
 import { ThemeStudioModal } from '../theme/ThemeStudioModal';
 import { api } from '../../services/apiClient';
-import { Notification, UserRole } from '../../types/scip';
+import { Notification } from '../../types/scip';
 import {
   Bell,
-  CheckCircle,
   AlertTriangle,
   FileText,
   User as UserIcon,
   LogOut,
   Sparkles,
-  ChevronDown,
   Palette
 } from 'lucide-react';
 
@@ -30,35 +28,87 @@ export const TopBar: React.FC<TopBarProps> = ({
   onToggleMobileSidebar,
   onOpenAuth
 }) => {
-  const { user, role, switchDemoRole, logout } = useAuth();
+  const { user, role, logout } = useAuth();
   const { activeTheme, isThemeStudioOpen, openThemeStudio, closeThemeStudio } = useTheme();
   const [notifications, setNotifications] = useState<Notification[]>([]);
+  const [notificationError, setNotificationError] = useState<string | null>(null);
   const [isNotifOpen, setIsNotifOpen] = useState(false);
   const [isUserMenuOpen, setIsUserMenuOpen] = useState(false);
-  const [isRoleDropdownOpen, setIsRoleDropdownOpen] = useState(false);
+  const notificationRequestInFlight = useRef(false);
+  const notificationRequestId = useRef(0);
+  const notificationUpdateInFlight = useRef(false);
 
   useEffect(() => {
-    loadNotifications();
-    const interval = setInterval(loadNotifications, 10000);
-    return () => clearInterval(interval);
-  }, [user]);
+    const requestId = ++notificationRequestId.current;
+    if (!user) {
+      setNotifications([]);
+      setNotificationError(null);
+      return () => {
+        notificationRequestId.current += 1;
+      };
+    }
 
-  const loadNotifications = async () => {
+    void loadNotifications(requestId, user.id);
+    const interval = setInterval(() => void loadNotifications(requestId, user.id), 10000);
+    return () => {
+      clearInterval(interval);
+      notificationRequestId.current += 1;
+      notificationRequestInFlight.current = false;
+    };
+  }, [user?.id]);
+
+  const loadNotifications = async (requestId: number, userId: string) => {
+    if (notificationRequestInFlight.current) return;
+    notificationRequestInFlight.current = true;
+    setNotificationError(null);
     try {
       const res = await api.getNotifications();
-      if (res && res.data) {
+      if (requestId === notificationRequestId.current && user?.id === userId && res?.data) {
         setNotifications(res.data);
       }
-    } catch {
-      // Ignore network errors
+    } catch (error) {
+      if (requestId === notificationRequestId.current) {
+        setNotificationError(error instanceof Error ? error.message : 'Unable to load notifications.');
+      }
+    } finally {
+      if (requestId === notificationRequestId.current) notificationRequestInFlight.current = false;
     }
   };
 
   const unreadCount = notifications.filter(n => !n.read).length;
 
   const handleMarkAllRead = async () => {
-    await api.markAllNotificationsRead();
-    setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    if (notificationUpdateInFlight.current) return;
+    notificationUpdateInFlight.current = true;
+    setNotificationError(null);
+    try {
+      await api.markAllNotificationsRead();
+      setNotifications(prev => prev.map(n => ({ ...n, read: true })));
+    } catch (error) {
+      setNotificationError(error instanceof Error ? error.message : 'Unable to mark notifications as read.');
+    } finally {
+      notificationUpdateInFlight.current = false;
+    }
+  };
+
+  const handleNotificationClick = async (notification: Notification) => {
+    if (!notification.read) {
+      try {
+        await api.markNotificationRead(notification.id);
+        setNotifications(current => current.map(item => item.id === notification.id ? { ...item, read: true } : item));
+        setNotificationError(null);
+      } catch (error) {
+        setNotificationError(error instanceof Error ? error.message : 'Unable to update this notification.');
+        return;
+      }
+    }
+
+    if (notification.link?.startsWith('INC')) {
+      onNavigate('incidents');
+    } else if (notification.link?.startsWith('REP')) {
+      onNavigate('my-reports');
+    }
+    setIsNotifOpen(false);
   };
 
   const getBreadcrumbLabel = (tab: string) => {
@@ -117,38 +167,9 @@ export const TopBar: React.FC<TopBarProps> = ({
       <div className="flex items-center gap-2 sm:gap-3">
         {user ? (
           <>
-            {/* Quick Role Persona Switcher (For seamless testing across citizen/officer/authority/admin) */}
-            <div className="relative">
-              <button
-                onClick={() => setIsRoleDropdownOpen(!isRoleDropdownOpen)}
-                className="flex items-center gap-1.5 px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-emerald-50/60 hover:bg-emerald-100/70 rounded-lg border border-emerald-200/80 transition-colors cursor-pointer"
-                title="Switch active role to test access control"
-              >
-                <span className="text-slate-500 font-normal">Role:</span>
-                <span className="font-semibold uppercase tracking-wider text-emerald-700 text-[11px]">{role}</span>
-                <ChevronDown className="w-3.5 h-3.5 text-emerald-600" />
-              </button>
-
-              {isRoleDropdownOpen && (
-                <div className="absolute right-0 mt-1 w-48 bg-white rounded-xl shadow-lg border border-emerald-100 py-1 z-50">
-                  <div className="px-3 py-1.5 text-[11px] font-semibold text-slate-400 uppercase tracking-wider border-b border-slate-100">
-                    Switch Test Persona
-                  </div>
-                  {(['citizen', 'officer', 'authority', 'admin'] as UserRole[]).map(r => (
-                    <button
-                      key={r}
-                      onClick={() => {
-                        switchDemoRole(r);
-                        setIsRoleDropdownOpen(false);
-                      }}
-                      className={`w-full text-left px-3 py-2 text-xs flex items-center justify-between hover:bg-emerald-50/60 transition-colors cursor-pointer ${role === r ? 'font-semibold text-emerald-700 bg-emerald-50' : 'text-slate-700'}`}
-                    >
-                      <span className="capitalize">{r}</span>
-                      {role === r && <CheckCircle className="w-3.5 h-3.5 text-emerald-600" />}
-                    </button>
-                  ))}
-                </div>
-              )}
+            <div className="px-2.5 py-1.5 text-xs font-medium text-slate-700 bg-emerald-50/60 rounded-lg border border-emerald-200/80">
+              <span className="text-slate-500 font-normal">Role:</span>
+              <span className="ml-1.5 font-semibold uppercase tracking-wider text-emerald-700 text-[11px]">{role}</span>
             </div>
 
             {/* Notifications Dropdown */}
@@ -177,6 +198,18 @@ export const TopBar: React.FC<TopBarProps> = ({
                       </button>
                     )}
                   </div>
+                  {notificationError && (
+                    <div className="mx-3 my-2 rounded-md border border-rose-200 bg-rose-50 px-3 py-2 text-xs text-rose-700" role="alert">
+                      <div>{notificationError}</div>
+                      {user && (
+                        <button
+                          type="button"
+                          onClick={() => void loadNotifications(notificationRequestId.current, user.id)}
+                          className="mt-1 font-semibold underline"
+                        >Retry</button>
+                      )}
+                    </div>
+                  )}
                   <div className="max-h-72 overflow-y-auto divide-y divide-slate-100">
                     {notifications.length === 0 ? (
                       <div className="p-4 text-center text-xs text-slate-500">No notifications</div>
@@ -184,15 +217,7 @@ export const TopBar: React.FC<TopBarProps> = ({
                       notifications.map(notif => (
                         <div
                           key={notif.id}
-                          onClick={() => {
-                            api.markNotificationRead(notif.id);
-                            if (notif.link?.startsWith('INC')) {
-                              onNavigate('incidents');
-                            } else if (notif.link?.startsWith('REP')) {
-                              onNavigate('my-reports');
-                            }
-                            setIsNotifOpen(false);
-                          }}
+                          onClick={() => void handleNotificationClick(notif)}
                           className={`p-3 text-xs hover:bg-slate-50 cursor-pointer transition-colors ${!notif.read ? 'bg-indigo-50/30' : ''}`}
                         >
                           <div className="font-medium text-slate-900 flex items-center justify-between">
